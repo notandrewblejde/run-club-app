@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Activity } from '@/types';
 import { Heart, MessageCircle, Flame } from 'lucide-react-native';
+import { generateStaticMapUrl } from '@/utils/mapbox';
 
 interface ActivityCardProps {
   activity: Activity;
@@ -23,9 +24,11 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
       </View>
 
       {activity.route && (
-        <View style={styles.mapPlaceholder}>
-          <Text style={styles.mapText}>Route Map</Text>
-        </View>
+        <Image
+          source={{ uri: generateStaticMapUrl(activity) }}
+          style={styles.mapThumbnail}
+          resizeMode="cover"
+        />
       )}
 
       <View style={styles.footer}>
@@ -85,17 +88,11 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
     fontSize: 12,
   },
-  mapPlaceholder: {
-    backgroundColor: '#1a1a1a',
+  mapThumbnail: {
     height: 120,
     borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 12,
-  },
-  mapText: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 12,
+    overflow: 'hidden',
   },
   footer: {
     flexDirection: 'row',
