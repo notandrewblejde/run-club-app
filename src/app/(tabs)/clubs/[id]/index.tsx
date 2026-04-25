@@ -1,13 +1,13 @@
+import { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { ArrowLeft, Users, Target, Trophy } from 'lucide-react-native';
+import { Users, Target, Trophy } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   useClub,
@@ -17,6 +17,7 @@ import {
   useGoalProgress,
 } from '@/api/hooks';
 import { formatMiles } from '@/utils/format';
+import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
 import type { components } from '@/api/schema';
 
 type Goal = components['schemas']['Goal'];
@@ -26,12 +27,12 @@ export default function ClubDetailScreen() {
   const clubQ = useClub(id);
   const membersQ = useClubMembers(id);
   const goalsQ = useClubGoals(id, true);
-
-  if (!id) return null;
+  const { setActions, clearActions } = useBottomBarActions();
 
   const club = clubQ.data;
   const members = membersQ.data?.data ?? [];
   const goals = goalsQ.data?.data ?? [];
+  const canManage = club?.viewer_role === 'owner' || club?.viewer_role === 'admin';
 
   const refetch = () => {
     void clubQ.refetch();
@@ -39,16 +40,29 @@ export default function ClubDetailScreen() {
     void goalsQ.refetch();
   };
 
+  // Surface "Add goal" in the bottom bar for owners/admins.
+  useEffect(() => {
+    if (canManage && id) {
+      setActions([
+        {
+          label: 'Add goal',
+          onPress: () => router.push(`/(tabs)/clubs/${id}/goals/new`),
+        },
+      ]);
+    } else {
+      clearActions();
+    }
+    return () => clearActions();
+  }, [canManage, id, setActions, clearActions]);
+
+  if (!id) return null;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {club?.name ?? 'Club'}
         </Text>
-        <View style={{ width: 22 }} />
       </View>
 
       {clubQ.isLoading ? (
@@ -64,7 +78,11 @@ export default function ClubDetailScreen() {
 
           <Section icon={<Target size={16} color="#FF6B35" />} title="Goals">
             {goals.length === 0 ? (
-              <Text style={styles.empty}>No active goals. An admin can create one.</Text>
+              <Text style={styles.empty}>
+                {canManage
+                  ? 'No active goals yet. Tap "Add goal" below to create one.'
+                  : 'No active goals. An admin can create one.'}
+              </Text>
             ) : (
               goals.map((g) => <GoalCard key={g.id} clubId={id} goal={g} />)
             )}
@@ -157,16 +175,13 @@ function GoalCard({ clubId, goal }: { clubId: string; goal: Goal }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0F0F0F' },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  headerTitle: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  headerTitle: { color: '#fff', fontWeight: '700', fontSize: 22 },
   body: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 140 },
   description: { color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 20 },
   section: { marginBottom: 28 },

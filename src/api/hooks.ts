@@ -220,6 +220,27 @@ export function useGoalProgress(clubId: string, goalId: string | undefined) {
   });
 }
 
+export function useCreateGoal(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    Goal,
+    Error,
+    { name: string; target_distance_miles: number; start_date: string; end_date: string }
+  >({
+    mutationFn: (body) =>
+      unwrap(
+        api.POST('/v1/clubs/{clubId}/goals', {
+          params: { path: { clubId } },
+          body,
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, true) });
+      void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, false) });
+    },
+  });
+}
+
 export function useGoalLeaderboard(clubId: string, goalId: string | undefined) {
   return useQuery({
     queryKey: qk.goalLeaderboard(clubId, goalId ?? ''),

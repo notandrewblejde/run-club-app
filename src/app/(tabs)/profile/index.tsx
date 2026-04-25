@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import {
-  Settings,
+  Pencil,
   LogOut,
   Activity as ActivityIcon,
   RefreshCw,
@@ -83,8 +83,13 @@ export default function ProfileScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.title}>Profile</Text>
-        <TouchableOpacity hitSlop={12}>
-          <Settings size={20} color="rgba(255,255,255,0.7)" />
+        <TouchableOpacity
+          hitSlop={12}
+          onPress={() => router.push('/(tabs)/profile/edit')}
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile"
+        >
+          <Pencil size={18} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
       </View>
 
@@ -147,7 +152,7 @@ export default function ProfileScreen() {
         ) : (
           <TouchableOpacity
             style={[styles.row, { backgroundColor: '#FC4C02' }]}
-            onPress={() => router.push('/auth/strava-connect')}
+            onPress={() => router.push('/(tabs)/strava-connect')}
           >
             <Text style={[styles.rowText, { color: '#fff' }]}>Connect Strava</Text>
           </TouchableOpacity>

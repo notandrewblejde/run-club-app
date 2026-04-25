@@ -9,6 +9,9 @@ WebBrowser.maybeCompleteAuthSession();
 
 const AUTH0_DOMAIN = process.env.EXPO_PUBLIC_AUTH0_DOMAIN || 'runclub.us.auth0.com';
 const AUTH0_CLIENT_ID = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '';
+// API identifier registered in Auth0. Drives the `aud` claim on issued tokens
+// so the backend can validate them as JWTs instead of opaque access tokens.
+const AUTH0_AUDIENCE = process.env.EXPO_PUBLIC_AUTH0_AUDIENCE || 'https://api.runclub.app';
 const redirectUri = 'runclub://auth/callback';
 
 export default function LoginScreen() {
@@ -19,9 +22,7 @@ export default function LoginScreen() {
       clientId: AUTH0_CLIENT_ID,
       scopes: ['openid', 'profile', 'email'],
       redirectUri,
-      extraParams: {
-        audience: `https://${AUTH0_DOMAIN}/api/v2/`,
-      },
+      extraParams: { audience: AUTH0_AUDIENCE },
     },
     { authorizationEndpoint: `https://${AUTH0_DOMAIN}/authorize` }
   );
@@ -55,7 +56,7 @@ export default function LoginScreen() {
         idToken: tokenResponse.idToken || '',
       });
 
-      router.replace('/auth/strava-connect');
+      router.replace('/(tabs)/strava-connect');
     } catch (error) {
       console.error('Auth error:', error);
       setLoading(false);
