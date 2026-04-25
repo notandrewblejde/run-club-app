@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Club } from '@/types';
-import { Users, Target } from 'lucide-react-native';
+import { Users, Globe, Lock } from 'lucide-react-native';
+import type { components } from '@/api/schema';
+
+type Club = components['schemas']['Club'];
 
 interface ClubCardProps {
   club: Club;
@@ -8,41 +10,35 @@ interface ClubCardProps {
 }
 
 export function ClubCard({ club, onPress }: ClubCardProps) {
-  const progressPercent = club.goal ? (club.goal.progress / club.goal.target) * 100 : 0;
-
+  const Icon = club.privacy_level === 'public' ? Globe : Lock;
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.header}>
         <View>
           <Text style={styles.name}>{club.name}</Text>
-          <Text style={styles.description} numberOfLines={1}>
-            {club.description}
-          </Text>
-        </View>
-        <View style={styles.memberCount}>
-          <Users size={16} color="#fff" />
-          <Text style={styles.count}>{club.memberCount}</Text>
-        </View>
-      </View>
-
-      {club.goal && (
-        <View style={styles.goalSection}>
-          <View style={styles.goalHeader}>
-            <Target size={14} color="#00A3E0" />
-            <Text style={styles.goalText}>
-              {club.goal.progress} / {club.goal.target} {club.goal.unit}
+          {club.description ? (
+            <Text style={styles.description} numberOfLines={1}>
+              {club.description}
             </Text>
-          </View>
-          <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressFill,
-                { width: `${Math.min(progressPercent, 100)}%` }
-              ]} 
-            />
-          </View>
+          ) : null}
         </View>
-      )}
+        {typeof club.member_count === 'number' ? (
+          <View style={styles.memberCount}>
+            <Users size={14} color="#fff" />
+            <Text style={styles.count}>{club.member_count}</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.metaRow}>
+        <Icon size={11} color="rgba(255,255,255,0.5)" />
+        <Text style={styles.metaText}>{club.privacy_level}</Text>
+        {club.viewer_role ? (
+          <>
+            <Text style={styles.metaText}>·</Text>
+            <Text style={styles.metaText}>{club.viewer_role}</Text>
+          </>
+        ) : null}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -51,56 +47,21 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#111',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginBottom: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  name: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  description: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 12,
-    maxWidth: 200,
-  },
-  memberCount: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  count: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  goalSection: {
-    gap: 8,
-  },
-  goalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  goalText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#00A3E0',
-  },
+  name: { color: '#fff', fontSize: 16, fontWeight: '600', marginBottom: 2 },
+  description: { color: 'rgba(255,255,255,0.6)', fontSize: 12, maxWidth: 220 },
+  memberCount: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  count: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaText: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
 });

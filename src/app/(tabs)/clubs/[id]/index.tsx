@@ -1,198 +1,215 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Users, Target } from 'lucide-react-native';
-import { ActivityCard } from '@/components/activity/ActivityCard';
-import { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
+import { ArrowLeft, Users, Target, Trophy } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import {
+  useClub,
+  useClubGoals,
+  useClubMembers,
+  useGoalLeaderboard,
+  useGoalProgress,
+} from '@/api/hooks';
+import { formatMiles } from '@/utils/format';
+import type { components } from '@/api/schema';
+
+type Goal = components['schemas']['Goal'];
 
 export default function ClubDetailScreen() {
-  const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const clubQ = useClub(id);
+  const membersQ = useClubMembers(id);
+  const goalsQ = useClubGoals(id, true);
 
-  // TODO: Fetch club data based on ID
-  const club = {
-    id,
-    name: 'Morning Runners',
-    description: 'Early risers on a mission',
-    memberCount: 12,
-    totalDistance: 245.5,
-    goal: {
-      target: 500,
-      progress: 245,
-      unit: 'miles',
-    },
+  if (!id) return null;
+
+  const club = clubQ.data;
+  const members = membersQ.data?.data ?? [];
+  const goals = goalsQ.data?.data ?? [];
+
+  const refetch = () => {
+    void clubQ.refetch();
+    void membersQ.refetch();
+    void goalsQ.refetch();
   };
-
-  const members = [
-    { id: '1', name: 'Alex Johnson', avatar: '' },
-    { id: '2', name: 'Sarah Connor', avatar: '' },
-    { id: '3', name: 'Mike Davis', avatar: '' },
-  ];
-
-  const clubActivities: any[] = [];
-
-  const progressPercent = (club.goal.progress / club.goal.target) * 100;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <ArrowLeft size={24} color="#fff" />
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+          <ArrowLeft size={22} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{club.name}</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {club?.name ?? 'Club'}
+        </Text>
+        <View style={{ width: 22 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.description}>{club.description}</Text>
+      {clubQ.isLoading ? (
+        <ActivityIndicator color="#00A3E0" style={{ marginTop: 40 }} />
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.body}
+          refreshControl={
+            <RefreshControl refreshing={clubQ.isFetching} onRefresh={refetch} tintColor="#00A3E0" />
+          }
+        >
+          {club?.description ? <Text style={styles.description}>{club.description}</Text> : null}
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Target size={18} color="#00A3E0" />
-            <Text style={styles.sectionTitle}>Club Goal</Text>
-          </View>
-          <View style={styles.goalCard}>
-            <Text style={styles.goalProgress}>
-              {club.goal.progress} / {club.goal.target} {club.goal.unit}
-            </Text>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill,
-                  { width: `${Math.min(progressPercent, 100)}%` }
-                ]} 
-              />
-            </View>
-            <Text style={styles.progressPercent}>
-              {Math.round(progressPercent)}% Complete
-            </Text>
-          </View>
-        </View>
+          <Section icon={<Target size={16} color="#FF6B35" />} title="Goals">
+            {goals.length === 0 ? (
+              <Text style={styles.empty}>No active goals. An admin can create one.</Text>
+            ) : (
+              goals.map((g) => <GoalCard key={g.id} clubId={id} goal={g} />)
+            )}
+          </Section>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Users size={18} color="#00A3E0" />
-            <Text style={styles.sectionTitle}>Members ({club.memberCount})</Text>
-          </View>
-          {members.map((member) => (
-            <View key={member.id} style={styles.memberItem}>
-              <View style={styles.memberAvatar}>
-                <Text style={styles.memberInitial}>
-                  {member.name.charAt(0)}
-                </Text>
+          <Section
+            icon={<Users size={16} color="#00A3E0" />}
+            title={`Members (${members.length})`}
+          >
+            {members.map((m) => (
+              <View key={m.user?.id ?? m.club_id} style={styles.memberRow}>
+                <View style={styles.memberAvatar}>
+                  <Text style={styles.memberInitial}>
+                    {(m.user?.name ?? '?').slice(0, 1).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.memberName}>{m.user?.name ?? 'Unnamed'}</Text>
+                  <Text style={styles.memberRole}>{m.role}</Text>
+                </View>
               </View>
-              <Text style={styles.memberName}>{member.name}</Text>
+            ))}
+          </Section>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        {icon}
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function GoalCard({ clubId, goal }: { clubId: string; goal: Goal }) {
+  const progressQ = useGoalProgress(clubId, goal.id);
+  const lbQ = useGoalLeaderboard(clubId, goal.id);
+  const target = Number(progressQ.data?.target_distance_miles ?? goal.target_distance_miles ?? 0);
+  const total = Number(progressQ.data?.total_distance_miles ?? 0);
+  const pct = target ? Math.min(100, (total / target) * 100) : 0;
+  const top = lbQ.data?.data ?? [];
+
+  return (
+    <View style={styles.goalCard}>
+      <Text style={styles.goalName}>{goal.name}</Text>
+      <Text style={styles.goalMeta}>
+        {formatMiles(total)} / {formatMiles(target)}
+      </Text>
+      <View style={styles.progressBar}>
+        <View style={[styles.progressFill, { width: `${pct}%` }]} />
+      </View>
+      <Text style={styles.progressPct}>{Math.round(pct)}% complete</Text>
+
+      {top.length > 0 ? (
+        <View style={styles.leaderboard}>
+          <View style={styles.leaderboardHeader}>
+            <Trophy size={12} color="#FFD24A" />
+            <Text style={styles.leaderboardTitle}>Top contributors</Text>
+          </View>
+          {top.slice(0, 5).map((e) => (
+            <View key={e.user?.id ?? e.rank} style={styles.leaderboardRow}>
+              <Text style={styles.leaderboardRank}>{e.rank}.</Text>
+              <Text style={styles.leaderboardName}>{e.user?.name ?? 'Unnamed'}</Text>
+              <Text style={styles.leaderboardMiles}>
+                {formatMiles(Number(e.total_distance_miles))}
+              </Text>
             </View>
           ))}
         </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Club Feed</Text>
-          {clubActivities.length === 0 && (
-            <Text style={styles.emptyState}>No activities yet</Text>
-          )}
-        </View>
-      </ScrollView>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
+  container: { flex: 1, backgroundColor: '#0F0F0F' },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a1a1a',
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  description: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 24,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
+  headerTitle: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  body: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 140 },
+  description: { color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 20 },
+  section: { marginBottom: 28 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  sectionTitle: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  empty: { color: 'rgba(255,255,255,0.4)', fontSize: 13 },
   goalCard: {
     backgroundColor: '#111',
     borderRadius: 12,
-    padding: 16,
-    gap: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  goalProgress: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#00A3E0',
-  },
-  progressPercent: {
-    fontSize: 12,
-    color: '#00A3E0',
-    fontWeight: '600',
-  },
-  memberItem: {
+  goalName: { color: '#fff', fontWeight: '600', marginBottom: 4 },
+  goalMeta: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 8 },
+  progressBar: { height: 6, backgroundColor: '#1a1a1a', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: '#FF6B35' },
+  progressPct: { color: '#FF6B35', fontSize: 11, marginTop: 6, fontWeight: '600' },
+  leaderboard: { marginTop: 12, gap: 4 },
+  leaderboardHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  leaderboardTitle: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600' },
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  leaderboardRank: { color: 'rgba(255,255,255,0.4)', fontSize: 12, width: 20 },
+  leaderboardName: { color: '#fff', fontSize: 13, flex: 1 },
+  leaderboardMiles: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
+  memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a1a1a',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   memberAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#00A3E0',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  memberInitial: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  memberName: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 14,
-  },
-  emptyState: {
-    color: 'rgba(255,255,255,0.4)',
-    textAlign: 'center',
-    paddingVertical: 32,
-  },
+  memberInitial: { color: '#0F0F0F', fontWeight: '700' },
+  memberName: { color: '#fff', fontSize: 14 },
+  memberRole: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
 });
