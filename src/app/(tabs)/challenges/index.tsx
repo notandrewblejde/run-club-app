@@ -15,6 +15,8 @@ import { api, unwrap } from '@/api/client';
 import { qk } from '@/api/queryClient';
 import { useMyClubs } from '@/api/hooks';
 import { formatMiles } from '@/utils/format';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 import type { components } from '@/api/schema';
 
 type Goal = components['schemas']['Goal'];
@@ -22,10 +24,11 @@ type GoalProgress = components['schemas']['GoalProgress'];
 type Club = components['schemas']['Club'];
 
 export default function ChallengesScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const myClubsQ = useMyClubs();
   const clubs = (myClubsQ.data?.data ?? []) as Club[];
 
-  // Fetch active goals for every club in parallel.
   const goalsQueries = useQueries({
     queries: clubs.map((c) => ({
       queryKey: qk.clubGoals(c.id, true),
@@ -37,7 +40,6 @@ export default function ChallengesScreen() {
     })),
   });
 
-  // Flatten all goals with their parent club, then fetch progress for each.
   const flattenedGoals = useMemo(() => {
     const acc: { club: Club; goal: Goal }[] = [];
     goalsQueries.forEach((q, idx) => {
@@ -88,17 +90,21 @@ export default function ChallengesScreen() {
       </View>
 
       {myClubsQ.isLoading ? (
-        <ActivityIndicator color="#00A3E0" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={tokens.accentBlue} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.scroll}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={refetchAll} tintColor="#00A3E0" />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refetchAll}
+              tintColor={tokens.accentBlue}
+            />
           }
         >
           {rows.length === 0 ? (
             <View style={styles.empty}>
-              <Trophy size={32} color="rgba(255,255,255,0.3)" />
+              <Trophy size={32} color={tokens.textMuted} />
               <Text style={styles.emptyTitle}>No active challenges</Text>
               <Text style={styles.emptyBody}>
                 Goals you create or join through your clubs will show up here.
@@ -106,7 +112,14 @@ export default function ChallengesScreen() {
             </View>
           ) : (
             rows.map((r) => (
-              <ChallengeCard key={r.goal.id} club={r.club} goal={r.goal} progress={r.progress} />
+              <ChallengeCard
+                key={r.goal.id}
+                club={r.club}
+                goal={r.goal}
+                progress={r.progress}
+                tokens={tokens}
+                styles={styles}
+              />
             ))
           )}
         </ScrollView>
@@ -119,10 +132,14 @@ function ChallengeCard({
   club,
   goal,
   progress,
+  tokens,
+  styles,
 }: {
   club: Club;
   goal: Goal;
   progress?: GoalProgress;
+  tokens: ThemeTokens;
+  styles: ReturnType<typeof makeStyles>;
 }) {
   const target = Number(progress?.target_distance_miles ?? goal.target_distance_miles ?? 0);
   const total = Number(progress?.total_distance_miles ?? 0);
@@ -140,7 +157,7 @@ function ChallengeCard({
       <View style={styles.cardHeader}>
         <Text style={styles.clubName}>{club.name}</Text>
         <View style={styles.daysLeft}>
-          <Calendar size={11} color="#FFD24A" />
+          <Calendar size={11} color={tokens.accentYellow} />
           <Text style={styles.daysLeftText}>{daysLeft} days left</Text>
         </View>
       </View>
@@ -156,50 +173,57 @@ function ChallengeCard({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 8 },
-  title: { color: '#fff', fontSize: 28, fontWeight: '700' },
-  subtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 4 },
-  scroll: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 140 },
-  empty: { alignItems: 'center', paddingTop: 80 },
-  emptyTitle: { color: '#fff', fontSize: 16, fontWeight: '600', marginTop: 12 },
-  emptyBody: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-    marginTop: 6,
-    lineHeight: 18,
-  },
-  card: {
-    backgroundColor: '#111',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  clubName: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '500' },
-  daysLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,210,74,0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  daysLeftText: { color: '#FFD24A', fontSize: 11, fontWeight: '600' },
-  goalName: { color: '#fff', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  goalMeta: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 8 },
-  progressBar: { height: 6, backgroundColor: '#1a1a1a', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#FF6B35' },
-  progressPct: { color: '#FF6B35', fontSize: 11, marginTop: 6, fontWeight: '600' },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 8 },
+    title: { color: t.text, fontSize: 28, fontWeight: '700' },
+    subtitle: { color: t.textMuted, fontSize: 13, marginTop: 4 },
+    scroll: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 140 },
+    empty: { alignItems: 'center', paddingTop: 80 },
+    emptyTitle: { color: t.text, fontSize: 16, fontWeight: '600', marginTop: 12 },
+    emptyBody: {
+      color: t.textMuted,
+      fontSize: 13,
+      textAlign: 'center',
+      paddingHorizontal: 32,
+      marginTop: 6,
+      lineHeight: 18,
+    },
+    card: {
+      backgroundColor: t.surface,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.divider,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    clubName: { color: t.textSecondary, fontSize: 12, fontWeight: '500' },
+    daysLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: t.mode === 'dark' ? 'rgba(255,210,74,0.15)' : 'rgba(230,184,0,0.15)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    daysLeftText: { color: t.accentYellow, fontSize: 11, fontWeight: '600' },
+    goalName: { color: t.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
+    goalMeta: { color: t.textSecondary, fontSize: 13, marginBottom: 8 },
+    progressBar: {
+      height: 6,
+      backgroundColor: t.surfaceElevated,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    progressFill: { height: '100%', backgroundColor: t.accentOrange },
+    progressPct: { color: t.accentOrange, fontSize: 11, marginTop: 6, fontWeight: '600' },
+  });
+}

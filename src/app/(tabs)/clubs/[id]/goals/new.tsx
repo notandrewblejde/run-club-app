@@ -4,6 +4,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar } from 'lucide-react-native';
 import { useCreateGoal } from '@/api/hooks';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
 interface DurationOption {
   label: string;
@@ -18,10 +20,12 @@ const DURATIONS: DurationOption[] = [
 ];
 
 function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10); // YYYY-MM-DD
+  return date.toISOString().slice(0, 10);
 }
 
 export default function NewGoalScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const { id: clubId } = useLocalSearchParams<{ id: string }>();
   const [name, setName] = useState('');
   const [targetMiles, setTargetMiles] = useState('100');
@@ -87,7 +91,7 @@ export default function NewGoalScreen() {
         <TextInput
           style={styles.input}
           placeholder="e.g. October mileage challenge"
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={tokens.placeholder}
           value={name}
           onChangeText={setName}
           autoFocus
@@ -98,7 +102,7 @@ export default function NewGoalScreen() {
         <TextInput
           style={styles.input}
           placeholder="100"
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={tokens.placeholder}
           value={targetMiles}
           onChangeText={setTargetMiles}
           inputMode="decimal"
@@ -128,7 +132,7 @@ export default function NewGoalScreen() {
         </View>
 
         <View style={styles.dateNote}>
-          <Calendar size={14} color="rgba(255,255,255,0.55)" />
+          <Calendar size={14} color={tokens.textSecondary} />
           <Text style={styles.dateNoteText}>
             {dateRange.start_date} → {dateRange.end_date}
           </Text>
@@ -138,46 +142,48 @@ export default function NewGoalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
-  headerTitle: { color: '#fff', fontWeight: '700', fontSize: 22 },
-  body: { paddingHorizontal: 20, gap: 8 },
-  label: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 12,
-    textTransform: 'uppercase',
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  input: {
-    backgroundColor: '#161618',
-    color: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#161618',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  chipActive: { backgroundColor: '#fff' },
-  chipLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '500' },
-  chipLabelActive: { color: '#0F0F0F', fontWeight: '600' },
-  dateNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
-    paddingVertical: 8,
-  },
-  dateNoteText: { color: 'rgba(255,255,255,0.55)', fontSize: 13 },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
+    headerTitle: { color: t.text, fontWeight: '700', fontSize: 22 },
+    body: { paddingHorizontal: 20, gap: 8 },
+    label: {
+      color: t.textSecondary,
+      fontSize: 12,
+      textTransform: 'uppercase',
+      marginTop: 16,
+      marginBottom: 4,
+    },
+    input: {
+      backgroundColor: t.surfaceElevated,
+      color: t.text,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 15,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+    },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: t.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+    },
+    chipActive: { backgroundColor: t.primary },
+    chipLabel: { color: t.textSecondary, fontSize: 13, fontWeight: '500' },
+    chipLabelActive: { color: t.onPrimary, fontWeight: '600' },
+    dateNote: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 16,
+      paddingVertical: 8,
+    },
+    dateNoteText: { color: t.textSecondary, fontSize: 13 },
+  });
+}

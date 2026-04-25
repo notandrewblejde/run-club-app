@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,12 @@ import { ArrowLeft, Sparkles } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useFeed, useActivitySummary } from '@/api/hooks';
 import { formatMiles, formatRelativeFromUnix } from '@/utils/format';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
-/**
- * AI coach surface — invoked from the floating agent pill.
- * MVP: lists the user's most recent runs and lets them request an AI
- * summary for any one of them (backed by /v1/activities/{id}/summary).
- */
 export default function AiCoachScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const feedQ = useFeed('me');
   const recent = feedQ.data?.data ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -27,10 +26,10 @@ export default function AiCoachScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
+          <ArrowLeft size={22} color={tokens.text} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Sparkles size={18} color="#FF6B35" />
+          <Sparkles size={18} color={tokens.accentOrange} />
           <Text style={styles.headerText}>AI Coach</Text>
         </View>
         <View style={{ width: 22 }} />
@@ -42,7 +41,7 @@ export default function AiCoachScreen() {
         </Text>
 
         {feedQ.isLoading ? (
-          <ActivityIndicator color="#FF6B35" style={{ marginTop: 24 }} />
+          <ActivityIndicator color={tokens.accentOrange} style={{ marginTop: 24 }} />
         ) : recent.length === 0 ? (
           <Text style={styles.empty}>
             No recent runs yet. Connect Strava and head out for a run — I'll have feedback
@@ -63,7 +62,7 @@ export default function AiCoachScreen() {
                   {formatMiles(a.distance_miles)} · {formatRelativeFromUnix(a.start_date)}
                 </Text>
               </View>
-              <Sparkles size={16} color="#FF6B35" />
+              <Sparkles size={16} color={tokens.accentOrange} />
             </TouchableOpacity>
           ))
         )}
@@ -71,7 +70,7 @@ export default function AiCoachScreen() {
         {selectedId ? (
           <View style={styles.summaryCard}>
             {summaryQ.isLoading ? (
-              <ActivityIndicator color="#FF6B35" />
+              <ActivityIndicator color={tokens.accentOrange} />
             ) : (
               <Text style={styles.summaryText}>
                 {summaryQ.data?.summary ?? summaryQ.error?.message ?? 'No summary available.'}
@@ -84,42 +83,44 @@ export default function AiCoachScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  headerTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  scroll: { paddingHorizontal: 20, paddingBottom: 140 },
-  intro: { color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 20 },
-  empty: { color: 'rgba(255,255,255,0.5)', fontSize: 14, marginTop: 20, lineHeight: 20 },
-  runRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#161618',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  runRowSelected: { borderColor: '#FF6B35' },
-  runName: { color: '#fff', fontWeight: '600', marginBottom: 2 },
-  runMeta: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-  summaryCard: {
-    backgroundColor: '#161618',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,107,53,0.4)',
-  },
-  summaryText: { color: '#fff', fontSize: 14, lineHeight: 20 },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 60,
+      paddingBottom: 16,
+    },
+    headerTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    headerText: { color: t.text, fontWeight: '600', fontSize: 16 },
+    scroll: { paddingHorizontal: 20, paddingBottom: 140 },
+    intro: { color: t.textSecondary, fontSize: 14, marginBottom: 20 },
+    empty: { color: t.textMuted, fontSize: 14, marginTop: 20, lineHeight: 20 },
+    runRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: t.surfaceElevated,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.divider,
+    },
+    runRowSelected: { borderColor: t.accentOrange },
+    runName: { color: t.text, fontWeight: '600', marginBottom: 2 },
+    runMeta: { color: t.textMuted, fontSize: 12 },
+    summaryCard: {
+      backgroundColor: t.surfaceElevated,
+      borderRadius: 12,
+      padding: 16,
+      marginTop: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.accentOrange,
+    },
+    summaryText: { color: t.text, fontSize: 14, lineHeight: 20 },
+  });
+}

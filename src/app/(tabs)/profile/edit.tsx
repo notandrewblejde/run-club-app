@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useMe, useUpdateMe } from '@/api/hooks';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
 export default function EditProfileScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const meQ = useMe();
   const update = useUpdateMe();
   const { setActions, clearActions } = useBottomBarActions();
@@ -14,7 +18,6 @@ export default function EditProfileScreen() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
 
-  // Hydrate the form once `me` resolves.
   useEffect(() => {
     if (!meQ.data) return;
     setName(meQ.data.name ?? '');
@@ -63,7 +66,7 @@ export default function EditProfileScreen() {
           value={name}
           onChangeText={setName}
           placeholder="Your name"
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={tokens.placeholder}
           maxLength={80}
         />
 
@@ -73,7 +76,7 @@ export default function EditProfileScreen() {
           value={bio}
           onChangeText={setBio}
           placeholder="A few words about you"
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={tokens.placeholder}
           multiline
           maxLength={500}
         />
@@ -86,7 +89,7 @@ export default function EditProfileScreen() {
               value={city}
               onChangeText={setCity}
               placeholder="San Francisco"
-              placeholderTextColor="rgba(255,255,255,0.4)"
+              placeholderTextColor={tokens.placeholder}
               maxLength={100}
             />
           </View>
@@ -97,7 +100,7 @@ export default function EditProfileScreen() {
               value={state}
               onChangeText={setState}
               placeholder="CA"
-              placeholderTextColor="rgba(255,255,255,0.4)"
+              placeholderTextColor={tokens.placeholder}
               maxLength={100}
             />
           </View>
@@ -107,28 +110,30 @@ export default function EditProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
-  headerTitle: { color: '#fff', fontWeight: '700', fontSize: 22 },
-  body: { paddingHorizontal: 20, paddingBottom: 140 },
-  label: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 12,
-    textTransform: 'uppercase',
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  input: {
-    backgroundColor: '#161618',
-    color: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  textarea: { minHeight: 96, textAlignVertical: 'top' },
-  row: { flexDirection: 'row', gap: 10 },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
+    headerTitle: { color: t.text, fontWeight: '700', fontSize: 22 },
+    body: { paddingHorizontal: 20, paddingBottom: 140 },
+    label: {
+      color: t.textSecondary,
+      fontSize: 12,
+      textTransform: 'uppercase',
+      marginTop: 16,
+      marginBottom: 4,
+    },
+    input: {
+      backgroundColor: t.surfaceElevated,
+      color: t.text,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 15,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+    },
+    textarea: { minHeight: 96, textAlignVertical: 'top' },
+    row: { flexDirection: 'row', gap: 10 },
+  });
+}

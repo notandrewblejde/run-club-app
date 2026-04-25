@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { router } from 'expo-router';
 import { ChevronDown, Check } from 'lucide-react-native';
 import { useFeed } from '@/api/hooks';
 import { ActivityCard } from '@/components/activity/ActivityCard';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
 type Scope = 'me' | 'following';
 
@@ -23,6 +25,8 @@ const SCOPE_LABEL: Record<Scope, string> = {
 };
 
 export default function FeedScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const [scope, setScope] = useState<Scope>('me');
   const [pickerOpen, setPickerOpen] = useState(false);
   const { data, isLoading, isFetching, isError, refetch } = useFeed(scope);
@@ -37,7 +41,7 @@ export default function FeedScreen() {
           hitSlop={8}
         >
           <Text style={styles.title}>{SCOPE_LABEL[scope]}</Text>
-          <ChevronDown size={22} color="rgba(255,255,255,0.5)" strokeWidth={2.2} />
+          <ChevronDown size={22} color={tokens.textMuted} strokeWidth={2.2} />
         </Pressable>
       </View>
 
@@ -55,7 +59,7 @@ export default function FeedScreen() {
           <RefreshControl
             refreshing={isFetching && !isLoading}
             onRefresh={refetch}
-            tintColor="#00A3E0"
+            tintColor={tokens.accentBlue}
           />
         }
         ListEmptyComponent={
@@ -74,7 +78,7 @@ export default function FeedScreen() {
         }
         ListFooterComponent={
           isLoading && activities.length === 0 ? (
-            <ActivityIndicator color="#00A3E0" style={{ marginTop: 40 }} />
+            <ActivityIndicator color={tokens.accentBlue} style={{ marginTop: 40 }} />
           ) : null
         }
       />
@@ -93,6 +97,8 @@ export default function FeedScreen() {
           setPickerOpen(false);
         }}
         onDismiss={() => setPickerOpen(false)}
+        styles={styles}
+        tokens={tokens}
       />
     </View>
   );
@@ -103,11 +109,15 @@ function ScopePicker({
   scope,
   onPick,
   onDismiss,
+  styles,
+  tokens,
 }: {
   visible: boolean;
   scope: Scope;
   onPick: (scope: Scope) => void;
   onDismiss: () => void;
+  styles: ReturnType<typeof makeStyles>;
+  tokens: ThemeTokens;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
@@ -121,7 +131,7 @@ function ScopePicker({
               activeOpacity={0.7}
             >
               <Text style={styles.sheetLabel}>{SCOPE_LABEL[s]}</Text>
-              {scope === s ? <Check size={18} color="#fff" /> : null}
+              {scope === s ? <Check size={18} color={tokens.text} /> : null}
             </TouchableOpacity>
           ))}
         </Pressable>
@@ -130,44 +140,50 @@ function ScopePicker({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 8 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
-  title: { fontSize: 28, fontWeight: '700', color: '#fff' },
-  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 140 },
-  emptyContainer: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: 32 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#fff', marginBottom: 8 },
-  emptySubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  errorBanner: { backgroundColor: '#5b1212', paddingHorizontal: 16, paddingVertical: 10 },
-  errorText: { color: '#fff', fontSize: 13 },
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 8 },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
+    title: { fontSize: 28, fontWeight: '700', color: t.text },
+    content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 140 },
+    emptyContainer: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: 32 },
+    emptyTitle: { fontSize: 18, fontWeight: '600', color: t.text, marginBottom: 8 },
+    emptySubtitle: {
+      fontSize: 13,
+      color: t.textMuted,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+    errorBanner: {
+      backgroundColor: t.errorBg,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+    },
+    errorText: { color: t.mode === 'dark' ? '#fff' : t.error, fontSize: 13 },
 
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingTop: 90,
-    paddingHorizontal: 20,
-  },
-  sheet: {
-    backgroundColor: '#1c1c1e',
-    borderRadius: 14,
-    paddingVertical: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
-    minWidth: 200,
-    alignSelf: 'flex-start',
-  },
-  sheetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  sheetLabel: { color: '#fff', fontSize: 15 },
-});
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      paddingTop: 90,
+      paddingHorizontal: 20,
+    },
+    sheet: {
+      backgroundColor: t.surfaceSheet,
+      borderRadius: 14,
+      paddingVertical: 4,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+      minWidth: 200,
+      alignSelf: 'flex-start',
+    },
+    sheetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    sheetLabel: { color: t.text, fontSize: 15 },
+  });
+}

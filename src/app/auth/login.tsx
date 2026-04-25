@@ -1,9 +1,11 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -15,6 +17,8 @@ const AUTH0_AUDIENCE = process.env.EXPO_PUBLIC_AUTH0_AUDIENCE || 'https://api.ru
 const redirectUri = 'runclub://auth/callback';
 
 export default function LoginScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const login = useAuthStore((state) => state.login);
   const [loading, setLoading] = useState(false);
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
@@ -70,7 +74,7 @@ export default function LoginScreen() {
         <Text style={styles.subtitle}>Social Running</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#00A3E0" style={styles.loader} />
+          <ActivityIndicator size="large" color={tokens.accentBlue} style={styles.loader} />
         ) : (
           <>
             <TouchableOpacity
@@ -78,10 +82,10 @@ export default function LoginScreen() {
               onPress={() => promptAsync()}
               disabled={!request}
             >
-              <Text style={styles.buttonText}>Continue with Auth0</Text>
+              <Text style={styles.primaryButtonText}>Continue with Auth0</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.buttonText}>Sign in with Google</Text>
+              <Text style={styles.socialButtonText}>Sign in with Google</Text>
             </TouchableOpacity>
           </>
         )}
@@ -90,52 +94,37 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0F0F0F',
-    justifyContent: 'center',
-  },
-  content: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 40,
-  },
-  button: {
-    backgroundColor: '#00A3E0',
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    marginBottom: 12,
-    width: '100%',
-    alignItems: 'center',
-  },
-  socialButton: {
-    backgroundColor: '#1F1F1F',
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    width: '100%',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  loader: {
-    marginVertical: 20,
-  },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: t.background,
+      justifyContent: 'center',
+    },
+    content: { padding: 20, alignItems: 'center' },
+    title: { fontSize: 32, fontWeight: 'bold', color: t.text, marginBottom: 8 },
+    subtitle: { fontSize: 16, color: t.textSecondary, marginBottom: 40 },
+    button: {
+      backgroundColor: t.accentBlue,
+      paddingVertical: 12,
+      paddingHorizontal: 32,
+      borderRadius: 8,
+      marginBottom: 12,
+      width: '100%',
+      alignItems: 'center',
+    },
+    socialButton: {
+      backgroundColor: t.surfaceElevated,
+      paddingVertical: 12,
+      paddingHorizontal: 32,
+      borderRadius: 8,
+      width: '100%',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+    socialButtonText: { color: t.text, fontSize: 16, fontWeight: '600' },
+    loader: { marginVertical: 20 },
+  });
+}

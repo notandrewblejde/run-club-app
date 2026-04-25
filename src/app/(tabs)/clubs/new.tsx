@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,12 @@ import { router } from 'expo-router';
 import { Globe, Lock } from 'lucide-react-native';
 import { useCreateClub } from '@/api/hooks';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
 export default function CreateClubScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [privacy, setPrivacy] = useState<'public' | 'private'>('private');
@@ -36,8 +40,6 @@ export default function CreateClubScreen() {
     }
   };
 
-  // Push the primary action into the bottom bar. Re-pushed whenever inputs
-  // change so disabled/loading state stays in sync.
   useEffect(() => {
     setActions([
       {
@@ -62,7 +64,7 @@ export default function CreateClubScreen() {
         <TextInput
           style={styles.input}
           placeholder="e.g. Saturday Long Run"
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={tokens.placeholder}
           value={name}
           onChangeText={setName}
           autoFocus
@@ -73,7 +75,7 @@ export default function CreateClubScreen() {
         <TextInput
           style={[styles.input, styles.textarea]}
           placeholder="What's this club about?"
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={tokens.placeholder}
           value={description}
           onChangeText={setDescription}
           multiline
@@ -88,6 +90,8 @@ export default function CreateClubScreen() {
             Icon={Lock}
             active={privacy === 'private'}
             onPress={() => setPrivacy('private')}
+            tokens={tokens}
+            styles={styles}
           />
           <PrivacyOption
             label="Public"
@@ -95,6 +99,8 @@ export default function CreateClubScreen() {
             Icon={Globe}
             active={privacy === 'public'}
             onPress={() => setPrivacy('public')}
+            tokens={tokens}
+            styles={styles}
           />
         </View>
       </View>
@@ -108,12 +114,16 @@ function PrivacyOption({
   Icon,
   active,
   onPress,
+  tokens,
+  styles,
 }: {
   label: string;
   description: string;
   Icon: typeof Lock;
   active: boolean;
   onPress: () => void;
+  tokens: ThemeTokens;
+  styles: ReturnType<typeof makeStyles>;
 }) {
   return (
     <TouchableOpacity
@@ -121,7 +131,7 @@ function PrivacyOption({
       onPress={onPress}
       activeOpacity={0.85}
     >
-      <Icon size={16} color={active ? '#0F0F0F' : '#fff'} />
+      <Icon size={16} color={active ? tokens.onPrimary : tokens.text} />
       <View>
         <Text style={[styles.privacyLabel, active && styles.privacyLabelActive]}>{label}</Text>
         <Text style={[styles.privacyDesc, active && styles.privacyDescActive]}>{description}</Text>
@@ -130,49 +140,47 @@ function PrivacyOption({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  headerTitle: { color: '#fff', fontWeight: '700', fontSize: 22 },
-  body: { paddingHorizontal: 20, gap: 8 },
-  label: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 12,
-    textTransform: 'uppercase',
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  input: {
-    backgroundColor: '#161618',
-    color: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  textarea: { minHeight: 96, textAlignVertical: 'top' },
-  privacyRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  privacyOption: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#161618',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  privacyOptionActive: { backgroundColor: '#fff' },
-  privacyLabel: { color: '#fff', fontWeight: '600' },
-  privacyLabelActive: { color: '#0F0F0F' },
-  privacyDesc: { color: 'rgba(255,255,255,0.55)', fontSize: 12 },
-  privacyDescActive: { color: 'rgba(15,15,15,0.7)' },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
+    headerTitle: { color: t.text, fontWeight: '700', fontSize: 22 },
+    body: { paddingHorizontal: 20, gap: 8 },
+    label: {
+      color: t.textSecondary,
+      fontSize: 12,
+      textTransform: 'uppercase',
+      marginTop: 16,
+      marginBottom: 4,
+    },
+    input: {
+      backgroundColor: t.surfaceElevated,
+      color: t.text,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 15,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+    },
+    textarea: { minHeight: 96, textAlignVertical: 'top' },
+    privacyRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+    privacyOption: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: t.surfaceElevated,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+    },
+    privacyOptionActive: { backgroundColor: t.primary },
+    privacyLabel: { color: t.text, fontWeight: '600' },
+    privacyLabelActive: { color: t.onPrimary },
+    privacyDesc: { color: t.textSecondary, fontSize: 12 },
+    privacyDescActive: { color: t.onPrimary, opacity: 0.7 },
+  });
+}

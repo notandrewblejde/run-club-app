@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -27,8 +27,12 @@ import {
   formatMiles,
   formatPace,
 } from '@/utils/format';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
 export default function ActivityDetailScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const activityQ = useActivity(id);
   const commentsQ = useComments(id);
@@ -44,7 +48,7 @@ export default function ActivityDetailScreen() {
   if (activityQ.isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color="#00A3E0" />
+        <ActivityIndicator color={tokens.accentBlue} />
       </View>
     );
   }
@@ -56,7 +60,10 @@ export default function ActivityDetailScreen() {
     );
   }
 
-  const mapUrl = generateStaticMapUrl(activity.map_polyline, 800, 320);
+  const mapUrl = generateStaticMapUrl(activity.map_polyline, 800, 320, {
+    style: tokens.mapStyle,
+    pathColor: tokens.mapPathColor,
+  });
   const comments = commentsQ.data?.data ?? [];
 
   const handlePost = async () => {
@@ -74,7 +81,7 @@ export default function ActivityDetailScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 160 }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <ArrowLeft size={22} color="#fff" />
+            <ArrowLeft size={22} color={tokens.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {activity.user?.name || 'Run'}
@@ -105,20 +112,23 @@ export default function ActivityDetailScreen() {
         )}
 
         <View style={styles.statGrid}>
-          <Stat label="Distance" value={formatMiles(activity.distance_miles)} />
-          <Stat label="Time" value={formatDuration(activity.moving_time_secs)} />
+          <Stat label="Distance" value={formatMiles(activity.distance_miles)} styles={styles} />
+          <Stat label="Time" value={formatDuration(activity.moving_time_secs)} styles={styles} />
           <Stat
             label="Pace"
             value={activity.avg_pace_display ?? formatPace(activity.avg_pace_secs_per_mile)}
+            styles={styles}
           />
-          <Stat label="Elevation" value={formatElevation(activity.elevation_gain_ft)} />
+          <Stat label="Elevation" value={formatElevation(activity.elevation_gain_ft)} styles={styles} />
           <Stat
             label="Avg HR"
             value={activity.avg_heart_rate_bpm ? `${activity.avg_heart_rate_bpm} bpm` : '—'}
+            styles={styles}
           />
           <Stat
             label="Max HR"
             value={activity.max_heart_rate_bpm ? `${activity.max_heart_rate_bpm} bpm` : '—'}
+            styles={styles}
           />
         </View>
 
@@ -135,19 +145,16 @@ export default function ActivityDetailScreen() {
         ) : null}
 
         <View style={styles.engagementRow}>
-          <TouchableOpacity
-            style={styles.engagementBtn}
-            onPress={() => toggleKudo.mutate()}
-          >
+          <TouchableOpacity style={styles.engagementBtn} onPress={() => toggleKudo.mutate()}>
             <Heart
               size={20}
-              color={activity.kudoed_by_viewer ? '#FF6B35' : 'rgba(255,255,255,0.7)'}
-              fill={activity.kudoed_by_viewer ? '#FF6B35' : 'transparent'}
+              color={activity.kudoed_by_viewer ? tokens.accentOrange : tokens.textSecondary}
+              fill={activity.kudoed_by_viewer ? tokens.accentOrange : 'transparent'}
             />
             <Text style={styles.engagementCount}>{activity.kudos_count}</Text>
           </TouchableOpacity>
           <View style={styles.engagementBtn}>
-            <MessageCircle size={20} color="rgba(255,255,255,0.7)" />
+            <MessageCircle size={20} color={tokens.textSecondary} />
             <Text style={styles.engagementCount}>{activity.comment_count}</Text>
           </View>
         </View>
@@ -168,11 +175,8 @@ export default function ActivityDetailScreen() {
                 <Text style={styles.commentContent}>{c.content}</Text>
               </View>
               {activity.owned_by_viewer || c.user?.id === activity.user?.id ? (
-                <TouchableOpacity
-                  onPress={() => deleteComment.mutate(c.id)}
-                  hitSlop={8}
-                >
-                  <Trash2 size={14} color="rgba(255,255,255,0.4)" />
+                <TouchableOpacity onPress={() => deleteComment.mutate(c.id)} hitSlop={8}>
+                  <Trash2 size={14} color={tokens.textMuted} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -184,7 +188,7 @@ export default function ActivityDetailScreen() {
         <TextInput
           style={styles.input}
           placeholder="Add a comment…"
-          placeholderTextColor="rgba(255,255,255,0.4)"
+          placeholderTextColor={tokens.placeholder}
           value={draft}
           onChangeText={setDraft}
           multiline
@@ -204,7 +208,15 @@ export default function ActivityDetailScreen() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  styles,
+}: {
+  label: string;
+  value: string;
+  styles: ReturnType<typeof makeStyles>;
+}) {
   return (
     <View style={styles.statBlock}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -213,130 +225,128 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  errorText: { color: 'rgba(255,255,255,0.7)' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  headerTitle: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  activityName: { color: '#fff', fontSize: 22, fontWeight: '700', paddingHorizontal: 20 },
-  timestamp: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 13,
-    paddingHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  prBadge: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    marginHorizontal: 20,
-    backgroundColor: '#FFD24A',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    gap: 4,
-    marginBottom: 12,
-  },
-  prText: { color: '#0F0F0F', fontWeight: '700', fontSize: 12 },
-  mapImage: {
-    height: 220,
-    marginHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: '#000',
-    marginBottom: 16,
-  },
-  mapPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#161618',
-  },
-  mapPlaceholderText: { color: 'rgba(255,255,255,0.45)', fontSize: 13 },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 16 },
-  statBlock: { width: '33%', paddingVertical: 8 },
-  statLabel: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  statValue: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  photoStrip: { paddingHorizontal: 20, gap: 8, marginBottom: 16 },
-  photo: { width: 160, height: 120, borderRadius: 8, marginRight: 8, backgroundColor: '#222' },
-  engagementRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 24, marginBottom: 24 },
-  engagementBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  engagementCount: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
-  sectionTitle: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-    paddingHorizontal: 20,
-    marginBottom: 8,
-  },
-  emptyComments: {
-    color: 'rgba(255,255,255,0.4)',
-    paddingHorizontal: 20,
-    fontSize: 13,
-    marginBottom: 24,
-  },
-  commentRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    gap: 10,
-  },
-  commentAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#00A3E0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  commentInitial: { color: '#0F0F0F', fontWeight: '700' },
-  commentBody: { flex: 1 },
-  commentName: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  commentContent: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 2 },
-  composer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: 'rgba(15,15,15,0.96)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-    padding: 12,
-    paddingBottom: 28,
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#161618',
-    color: '#fff',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 36,
-    maxHeight: 120,
-    fontSize: 14,
-  },
-  sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FF6B35',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendBtnDisabled: { backgroundColor: 'rgba(255,107,53,0.4)' },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    center: { alignItems: 'center', justifyContent: 'center' },
+    errorText: { color: t.textSecondary },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 60,
+      paddingBottom: 16,
+    },
+    headerTitle: { color: t.text, fontWeight: '600', fontSize: 16 },
+    activityName: { color: t.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 20 },
+    timestamp: {
+      color: t.textMuted,
+      fontSize: 13,
+      paddingHorizontal: 20,
+      marginTop: 4,
+      marginBottom: 12,
+    },
+    prBadge: {
+      flexDirection: 'row',
+      alignSelf: 'flex-start',
+      marginHorizontal: 20,
+      backgroundColor: t.accentYellow,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      gap: 4,
+      marginBottom: 12,
+    },
+    prText: { color: '#0F0F0F', fontWeight: '700', fontSize: 12 },
+    mapImage: {
+      height: 220,
+      marginHorizontal: 20,
+      borderRadius: 12,
+      backgroundColor: t.surfaceElevated,
+      marginBottom: 16,
+    },
+    mapPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+    mapPlaceholderText: { color: t.textMuted, fontSize: 13 },
+    statGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 16 },
+    statBlock: { width: '33%', paddingVertical: 8 },
+    statLabel: {
+      color: t.textMuted,
+      fontSize: 11,
+      textTransform: 'uppercase',
+      marginBottom: 2,
+    },
+    statValue: { color: t.text, fontSize: 14, fontWeight: '600' },
+    photoStrip: { paddingHorizontal: 20, gap: 8, marginBottom: 16 },
+    photo: { width: 160, height: 120, borderRadius: 8, marginRight: 8, backgroundColor: t.surfaceElevated },
+    engagementRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 24, marginBottom: 24 },
+    engagementBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    engagementCount: { color: t.textSecondary, fontSize: 14 },
+    sectionTitle: {
+      color: t.text,
+      fontWeight: '600',
+      fontSize: 16,
+      paddingHorizontal: 20,
+      marginBottom: 8,
+    },
+    emptyComments: {
+      color: t.textMuted,
+      paddingHorizontal: 20,
+      fontSize: 13,
+      marginBottom: 24,
+    },
+    commentRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      paddingHorizontal: 20,
+      paddingVertical: 8,
+      gap: 10,
+    },
+    commentAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: t.accentBlue,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    commentInitial: { color: '#fff', fontWeight: '700' },
+    commentBody: { flex: 1 },
+    commentName: { color: t.text, fontWeight: '600', fontSize: 13 },
+    commentContent: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    composer: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      backgroundColor: t.background,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.border,
+      padding: 12,
+      paddingBottom: 28,
+      gap: 8,
+    },
+    input: {
+      flex: 1,
+      backgroundColor: t.surfaceElevated,
+      color: t.text,
+      borderRadius: 18,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      minHeight: 36,
+      maxHeight: 120,
+      fontSize: 14,
+    },
+    sendBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: t.accentOrange,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sendBtnDisabled: { opacity: 0.4 },
+  });
+}

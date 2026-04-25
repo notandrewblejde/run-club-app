@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,11 +18,15 @@ import {
 } from '@/api/hooks';
 import { formatMiles } from '@/utils/format';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 import type { components } from '@/api/schema';
 
 type Goal = components['schemas']['Goal'];
 
 export default function ClubDetailScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const clubQ = useClub(id);
   const membersQ = useClubMembers(id);
@@ -40,7 +44,6 @@ export default function ClubDetailScreen() {
     void goalsQ.refetch();
   };
 
-  // Surface "Add goal" in the bottom bar for owners/admins.
   useEffect(() => {
     if (canManage && id) {
       setActions([
@@ -66,17 +69,25 @@ export default function ClubDetailScreen() {
       </View>
 
       {clubQ.isLoading ? (
-        <ActivityIndicator color="#00A3E0" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={tokens.accentBlue} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.body}
           refreshControl={
-            <RefreshControl refreshing={clubQ.isFetching} onRefresh={refetch} tintColor="#00A3E0" />
+            <RefreshControl
+              refreshing={clubQ.isFetching}
+              onRefresh={refetch}
+              tintColor={tokens.accentBlue}
+            />
           }
         >
           {club?.description ? <Text style={styles.description}>{club.description}</Text> : null}
 
-          <Section icon={<Target size={16} color="#FF6B35" />} title="Goals">
+          <Section
+            icon={<Target size={16} color={tokens.accentOrange} />}
+            title="Goals"
+            styles={styles}
+          >
             {goals.length === 0 ? (
               <Text style={styles.empty}>
                 {canManage
@@ -84,13 +95,14 @@ export default function ClubDetailScreen() {
                   : 'No active goals. An admin can create one.'}
               </Text>
             ) : (
-              goals.map((g) => <GoalCard key={g.id} clubId={id} goal={g} />)
+              goals.map((g) => <GoalCard key={g.id} clubId={id} goal={g} tokens={tokens} styles={styles} />)
             )}
           </Section>
 
           <Section
-            icon={<Users size={16} color="#00A3E0" />}
+            icon={<Users size={16} color={tokens.accentBlue} />}
             title={`Members (${members.length})`}
+            styles={styles}
           >
             {members.map((m) => (
               <View key={m.user?.id ?? m.club_id} style={styles.memberRow}>
@@ -116,10 +128,12 @@ function Section({
   title,
   icon,
   children,
+  styles,
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
+  styles: ReturnType<typeof makeStyles>;
 }) {
   return (
     <View style={styles.section}>
@@ -132,7 +146,17 @@ function Section({
   );
 }
 
-function GoalCard({ clubId, goal }: { clubId: string; goal: Goal }) {
+function GoalCard({
+  clubId,
+  goal,
+  tokens,
+  styles,
+}: {
+  clubId: string;
+  goal: Goal;
+  tokens: ThemeTokens;
+  styles: ReturnType<typeof makeStyles>;
+}) {
   const progressQ = useGoalProgress(clubId, goal.id);
   const lbQ = useGoalLeaderboard(clubId, goal.id);
   const target = Number(progressQ.data?.target_distance_miles ?? goal.target_distance_miles ?? 0);
@@ -154,7 +178,7 @@ function GoalCard({ clubId, goal }: { clubId: string; goal: Goal }) {
       {top.length > 0 ? (
         <View style={styles.leaderboard}>
           <View style={styles.leaderboardHeader}>
-            <Trophy size={12} color="#FFD24A" />
+            <Trophy size={12} color={tokens.accentYellow} />
             <Text style={styles.leaderboardTitle}>Top contributors</Text>
           </View>
           {top.slice(0, 5).map((e) => (
@@ -172,59 +196,66 @@ function GoalCard({ clubId, goal }: { clubId: string; goal: Goal }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  headerTitle: { color: '#fff', fontWeight: '700', fontSize: 22 },
-  body: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 140 },
-  description: { color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 20 },
-  section: { marginBottom: 28 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  sectionTitle: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  empty: { color: 'rgba(255,255,255,0.4)', fontSize: 13 },
-  goalCard: {
-    backgroundColor: '#111',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  goalName: { color: '#fff', fontWeight: '600', marginBottom: 4 },
-  goalMeta: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 8 },
-  progressBar: { height: 6, backgroundColor: '#1a1a1a', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#FF6B35' },
-  progressPct: { color: '#FF6B35', fontSize: 11, marginTop: 6, fontWeight: '600' },
-  leaderboard: { marginTop: 12, gap: 4 },
-  leaderboardHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
-  leaderboardTitle: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600' },
-  leaderboardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  leaderboardRank: { color: 'rgba(255,255,255,0.4)', fontSize: 12, width: 20 },
-  leaderboardName: { color: '#fff', fontSize: 13, flex: 1 },
-  leaderboardMiles: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  memberAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#00A3E0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  memberInitial: { color: '#0F0F0F', fontWeight: '700' },
-  memberName: { color: '#fff', fontSize: 14 },
-  memberRole: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    header: {
+      paddingHorizontal: 20,
+      paddingTop: 60,
+      paddingBottom: 16,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.divider,
+    },
+    headerTitle: { color: t.text, fontWeight: '700', fontSize: 22 },
+    body: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 140 },
+    description: { color: t.textSecondary, fontSize: 14, marginBottom: 20 },
+    section: { marginBottom: 28 },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+    sectionTitle: { color: t.text, fontSize: 15, fontWeight: '600' },
+    empty: { color: t.textMuted, fontSize: 13 },
+    goalCard: {
+      backgroundColor: t.surface,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.divider,
+    },
+    goalName: { color: t.text, fontWeight: '600', marginBottom: 4 },
+    goalMeta: { color: t.textSecondary, fontSize: 13, marginBottom: 8 },
+    progressBar: {
+      height: 6,
+      backgroundColor: t.surfaceElevated,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    progressFill: { height: '100%', backgroundColor: t.accentOrange },
+    progressPct: { color: t.accentOrange, fontSize: 11, marginTop: 6, fontWeight: '600' },
+    leaderboard: { marginTop: 12, gap: 4 },
+    leaderboardHeader: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+    leaderboardTitle: { color: t.textSecondary, fontSize: 12, fontWeight: '600' },
+    leaderboardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+    leaderboardRank: { color: t.textMuted, fontSize: 12, width: 20 },
+    leaderboardName: { color: t.text, fontSize: 13, flex: 1 },
+    leaderboardMiles: { color: t.textSecondary, fontSize: 12 },
+    memberRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.divider,
+    },
+    memberAvatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: t.accentBlue,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    memberInitial: { color: '#fff', fontWeight: '700' },
+    memberName: { color: t.text, fontSize: 14 },
+    memberRole: { color: t.textMuted, fontSize: 12 },
+  });
+}

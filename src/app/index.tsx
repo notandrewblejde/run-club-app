@@ -1,12 +1,10 @@
 import { Redirect } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useTheme } from '@/theme/ThemeContext';
 
-/**
- * Root entry — sends the user to the feed when authenticated, login otherwise.
- * Stays on a loader while `restoreAuth` is reading the JWT from SecureStore.
- */
 export default function Index() {
+  const { tokens } = useTheme();
   const isLoading = useAuthStore((s) => s.isLoading);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
@@ -17,10 +15,10 @@ export default function Index() {
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#0F0F0F',
+          backgroundColor: tokens.background,
         }}
       >
-        <ActivityIndicator color="#00A3E0" />
+        <ActivityIndicator color={tokens.accentBlue} />
       </View>
     );
   }

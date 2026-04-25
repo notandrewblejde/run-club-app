@@ -1,23 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const STRAVA_CLIENT_ID = process.env.EXPO_PUBLIC_STRAVA_CLIENT_ID || '';
 const redirectUri = 'runclub://strava-callback';
 
-/**
- * Strava connect surface, shown after Auth0 login (optional) and from the
- * Profile screen for users who skipped initially. Uses the bottom action bar
- * for "Connect Strava" / "Skip" so navigation chrome stays consistent across
- * detail screens.
- */
 export default function StravaConnectScreen() {
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const connectStrava = useAuthStore((s) => s.connectStrava);
   const { setActions, clearActions } = useBottomBarActions();
   const [exchanging, setExchanging] = useState(false);
@@ -51,7 +49,6 @@ export default function StravaConnectScreen() {
     }
   };
 
-  // Wire the connect / skip buttons into the bottom action bar.
   useEffect(() => {
     setActions([
       {
@@ -83,16 +80,22 @@ export default function StravaConnectScreen() {
         </Text>
 
         <View style={styles.bullets}>
-          <Bullet text="Auto-import runs after every workout" />
-          <Bullet text="Maps, pace, heart-rate, and elevation" />
-          <Bullet text="Disconnect anytime from your profile" />
+          <Bullet text="Auto-import runs after every workout" styles={styles} />
+          <Bullet text="Maps, pace, heart-rate, and elevation" styles={styles} />
+          <Bullet text="Disconnect anytime from your profile" styles={styles} />
         </View>
       </View>
     </View>
   );
 }
 
-function Bullet({ text }: { text: string }) {
+function Bullet({
+  text,
+  styles,
+}: {
+  text: string;
+  styles: ReturnType<typeof makeStyles>;
+}) {
   return (
     <View style={styles.bullet}>
       <View style={styles.bulletDot} />
@@ -101,40 +104,32 @@ function Bullet({ text }: { text: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F0F' },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 100,
-    alignItems: 'center',
-  },
-  logoBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: '#FC4C02',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  logoText: { color: '#fff', fontSize: 32, fontWeight: '800' },
-  title: { color: '#fff', fontSize: 28, fontWeight: '700', marginBottom: 8 },
-  subtitle: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    maxWidth: 320,
-    marginBottom: 32,
-  },
-  bullets: { alignSelf: 'stretch', gap: 12 },
-  bullet: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bulletDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FC4C02',
-  },
-  bulletText: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.background },
+    content: { flex: 1, paddingHorizontal: 24, paddingTop: 100, alignItems: 'center' },
+    logoBadge: {
+      width: 64,
+      height: 64,
+      borderRadius: 16,
+      backgroundColor: t.stravaOrange,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 24,
+    },
+    logoText: { color: '#fff', fontSize: 32, fontWeight: '800' },
+    title: { color: t.text, fontSize: 28, fontWeight: '700', marginBottom: 8 },
+    subtitle: {
+      color: t.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+      textAlign: 'center',
+      maxWidth: 320,
+      marginBottom: 32,
+    },
+    bullets: { alignSelf: 'stretch', gap: 12 },
+    bullet: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    bulletDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.stravaOrange },
+    bulletText: { color: t.text, fontSize: 14 },
+  });
+}

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Heart, MessageCircle, Award } from 'lucide-react-native';
 import type { components } from '@/api/schema';
@@ -8,6 +9,8 @@ import {
   formatPace,
   formatRelativeFromUnix,
 } from '@/utils/format';
+import { useTheme } from '@/theme/ThemeContext';
+import type { ThemeTokens } from '@/theme/tokens';
 
 type Activity = components['schemas']['Activity'];
 
@@ -17,7 +20,13 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ activity, onPress }: ActivityCardProps) {
-  const mapUrl = generateStaticMapUrl(activity.map_polyline, 600, 240);
+  const { tokens } = useTheme();
+  const styles = useMemo(() => makeStyles(tokens), [tokens]);
+
+  const mapUrl = generateStaticMapUrl(activity.map_polyline, 600, 240, {
+    style: tokens.mapStyle,
+    pathColor: tokens.mapPathColor,
+  });
   const userName = activity.user?.name ?? 'Unnamed runner';
   const avatar = activity.user?.avatar_url;
 
@@ -50,11 +59,12 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
       </Text>
 
       <View style={styles.stats}>
-        <Stat label="Distance" value={formatMiles(activity.distance_miles)} />
-        <Stat label="Time" value={formatDuration(activity.moving_time_secs)} />
+        <Stat label="Distance" value={formatMiles(activity.distance_miles)} styles={styles} />
+        <Stat label="Time" value={formatDuration(activity.moving_time_secs)} styles={styles} />
         <Stat
           label="Pace"
           value={activity.avg_pace_display ?? formatPace(activity.avg_pace_secs_per_mile)}
+          styles={styles}
         />
       </View>
 
@@ -66,13 +76,13 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
         <View style={styles.engagement}>
           <Heart
             size={16}
-            color={activity.kudoed_by_viewer ? '#FF6B35' : 'rgba(255,255,255,0.6)'}
-            fill={activity.kudoed_by_viewer ? '#FF6B35' : 'transparent'}
+            color={activity.kudoed_by_viewer ? tokens.accentOrange : tokens.textMuted}
+            fill={activity.kudoed_by_viewer ? tokens.accentOrange : 'transparent'}
           />
           <Text style={styles.count}>{activity.kudos_count}</Text>
         </View>
         <View style={styles.engagement}>
-          <MessageCircle size={16} color="rgba(255,255,255,0.6)" />
+          <MessageCircle size={16} color={tokens.textMuted} />
           <Text style={styles.count}>{activity.comment_count}</Text>
         </View>
       </View>
@@ -80,7 +90,15 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  styles,
+}: {
+  label: string;
+  value: string;
+  styles: ReturnType<typeof makeStyles>;
+}) {
   return (
     <View style={styles.statBlock}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -89,57 +107,61 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#111',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 36, height: 36, borderRadius: 18 },
-  avatarFallback: {
-    backgroundColor: '#00A3E0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { color: '#000', fontWeight: '700' },
-  name: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  timestamp: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-  prBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFD24A',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  prText: { color: '#0F0F0F', fontWeight: '700', fontSize: 11 },
-  title: { color: '#fff', fontSize: 16, fontWeight: '500', marginBottom: 12 },
-  stats: { flexDirection: 'row', gap: 16, marginBottom: 12 },
-  statBlock: { flex: 1 },
-  statLabel: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  statValue: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  mapThumbnail: {
-    height: 140,
-    width: '100%',
-    borderRadius: 8,
-    marginBottom: 12,
-    backgroundColor: '#000',
-  },
-  footer: { flexDirection: 'row', gap: 16 },
-  engagement: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  count: { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
-});
+function makeStyles(t: ThemeTokens) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: t.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.divider,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    avatar: { width: 36, height: 36, borderRadius: 18 },
+    avatarFallback: {
+      backgroundColor: t.accentBlue,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: { color: '#fff', fontWeight: '700' },
+    name: { color: t.text, fontSize: 14, fontWeight: '600' },
+    timestamp: { color: t.textMuted, fontSize: 12 },
+    prBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: t.accentYellow,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    prText: { color: '#0F0F0F', fontWeight: '700', fontSize: 11 },
+    title: { color: t.text, fontSize: 16, fontWeight: '500', marginBottom: 12 },
+    stats: { flexDirection: 'row', gap: 16, marginBottom: 12 },
+    statBlock: { flex: 1 },
+    statLabel: {
+      color: t.textMuted,
+      fontSize: 11,
+      textTransform: 'uppercase',
+      marginBottom: 2,
+    },
+    statValue: { color: t.text, fontSize: 14, fontWeight: '600' },
+    mapThumbnail: {
+      height: 140,
+      width: '100%',
+      borderRadius: 8,
+      marginBottom: 12,
+      backgroundColor: t.surfaceElevated,
+    },
+    footer: { flexDirection: 'row', gap: 16 },
+    engagement: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    count: { color: t.textSecondary, fontSize: 12 },
+  });
+}
