@@ -41,6 +41,11 @@ export default function LoginScreen() {
           code,
           clientId: AUTH0_CLIENT_ID,
           redirectUri,
+          // PKCE: useAuthRequest sent a code_challenge derived from this verifier;
+          // Auth0 rejects the exchange if we don't echo it back.
+          extraParams: request?.codeVerifier
+            ? { code_verifier: request.codeVerifier }
+            : undefined,
         },
         { tokenEndpoint: `https://${AUTH0_DOMAIN}/oauth/token` }
       );

@@ -5,7 +5,6 @@ import { queryClient } from '@/api/queryClient';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 export default function RootLayout() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const restoreAuth = useAuthStore((s) => s.restoreAuth);
 
   useEffect(() => {
@@ -15,11 +14,9 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <Stack screenOptions={{ headerShown: false }}>
-        {isAuthenticated ? (
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        ) : (
-          <Stack.Screen name="auth" options={{ headerShown: false }} />
-        )}
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="auth" />
       </Stack>
     </QueryClientProvider>
   );

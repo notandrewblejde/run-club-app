@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import { Home, Users, MapPin, Trophy, User, Sparkles } from 'lucide-react-native';
+import { House, Users, MapPin, Trophy, User, Sparkles } from 'lucide-react-native';
 
 const ACTIVE = '#fff';
 const INACTIVE = 'rgba(255,255,255,0.45)';
@@ -10,7 +10,7 @@ const INACTIVE = 'rgba(255,255,255,0.45)';
 /**
  * Linear-style floating navigation: a centered translucent pill for primary
  * routes, plus a separate smaller pill on the right that invokes the AI
- * coach. Both float over content with a subtle blur.
+ * coach.
  */
 export default function TabsLayout() {
   return (
@@ -34,7 +34,7 @@ export default function TabsLayout() {
           name="feed"
           options={{
             title: 'Feed',
-            tabBarIcon: ({ color }) => <Home color={color} size={20} strokeWidth={2.2} />,
+            tabBarIcon: ({ color }) => <House color={color} size={20} strokeWidth={2.2} />,
           }}
         />
         <Tabs.Screen
@@ -99,14 +99,12 @@ const PILL_RADIUS = PILL_HEIGHT / 2;
 const PILL_BOTTOM = 28;
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
+  root: { flex: 1 },
   tabBar: {
     position: 'absolute',
     bottom: PILL_BOTTOM,
     left: 24,
-    right: 88, // leave room for the agent pill
+    right: 88,
     height: PILL_HEIGHT,
     borderRadius: PILL_RADIUS,
     paddingHorizontal: 8,
@@ -121,13 +119,8 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
   },
-  blurOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(20,20,22,0.55)',
-  },
-  tabItem: {
-    height: PILL_HEIGHT,
-  },
+  blurOverlay: { flex: 1, backgroundColor: 'rgba(20,20,22,0.55)' },
+  tabItem: { height: PILL_HEIGHT },
   agentPill: {
     position: 'absolute',
     right: 24,
@@ -146,8 +139,5 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
   },
-  agentPillPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.97 }],
-  },
+  agentPillPressed: { opacity: 0.8, transform: [{ scale: 0.97 }] },
 });
