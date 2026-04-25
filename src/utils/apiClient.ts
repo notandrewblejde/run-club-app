@@ -6,6 +6,9 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/a
 const client = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
+  headers: {
+    'Host': 'api.runclub.app',
+  },
 });
 
 client.interceptors.request.use(async (config) => {
@@ -22,14 +25,9 @@ client.interceptors.request.use(async (config) => {
 
 client.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError) => {
+  (error: AxiosError) => {
     if (error.response?.status === 401) {
-      try {
-        await SecureStore.deleteItemAsync('jwt');
-        // TODO: Trigger logout/navigation to login
-      } catch (e) {
-        console.error('Error clearing JWT:', e);
-      }
+      SecureStore.deleteItemAsync('jwt');
     }
     return Promise.reject(error);
   }
