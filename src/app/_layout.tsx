@@ -1,8 +1,14 @@
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 export default function RootLayout() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const restoreAuth = useAuthStore((state) => state.restoreAuth);
+
+  useEffect(() => {
+    restoreAuth();
+  }, []);
 
   return (
     <Stack
