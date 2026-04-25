@@ -22,7 +22,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="clubs/[id]/goals/new" options={{ href: null }} />
       <Tabs.Screen name="clubs/new" options={{ href: null }} />
       <Tabs.Screen name="profile/edit" options={{ href: null }} />
-      <Tabs.Screen name="strava-connect" options={{ href: null }} />
       <Tabs.Screen name="ai/index" options={{ href: null }} />
     </Tabs>
   );
