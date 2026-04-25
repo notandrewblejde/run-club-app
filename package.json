@@ -1,0 +1,33 @@
+{
+  "name": "run-club-app",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "expo": "~52.0.0",
+    "expo-router": "~4.0.0",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "expo-status-bar": "~2.0.1",
+    "expo-auth-session": "~6.0.0",
+    "expo-web-browser": "~14.0.2",
+    "expo-secure-store": "~14.0.1",
+    "expo-blur": "~14.0.1",
+    "react-native-safe-area-context": "4.14.0",
+    "react-native-screens": "~4.4.0",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/bottom-tabs": "^6.6.1",
+    "axios": "^1.7.7",
+    "zustand": "^5.0.1",
+    "@mapbox/polyline": "^1.2.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "typescript": "~5.3.3"
+  }
+}

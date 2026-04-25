@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Run Club",
+    "slug": "run-club",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "runclub",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.runclub.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F0F0F"
+      },
+      "package": "com.runclub.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ]
+  }
+}
