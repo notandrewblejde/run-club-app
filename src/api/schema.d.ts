@@ -344,6 +344,8 @@ export interface components {
       total_elevation_ft: number;
       distance_miles_30d: number;
       activities_30d: number;
+      /** Sum of moving time for activities started in the last 30 days. */
+      moving_seconds_30d?: number;
     };
     UserProfile: {
       object: 'user_profile';

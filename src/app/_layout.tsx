@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/api/queryClient';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { BottomBarActionsProvider } from '@/components/nav/BottomBarActionsContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ThemeProvider, useTheme } from '@/theme/ThemeContext';
 
 export default function RootLayout() {
@@ -15,13 +16,15 @@ export default function RootLayout() {
   }, [restoreAuth]);
 
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <BottomBarActionsProvider>
-          <ThemedShell />
-        </BottomBarActionsProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <BottomBarActionsProvider>
+            <ThemedShell />
+          </BottomBarActionsProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

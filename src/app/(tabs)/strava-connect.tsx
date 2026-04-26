@@ -11,7 +11,8 @@ import type { ThemeTokens } from '@/theme/tokens';
 WebBrowser.maybeCompleteAuthSession();
 
 const STRAVA_CLIENT_ID = process.env.EXPO_PUBLIC_STRAVA_CLIENT_ID || '';
-const redirectUri = 'runclub://strava-callback';
+/** Host must be `localhost` — Strava whitelists it. Set Strava app "Authorization Callback Domain" to: localhost */
+const redirectUri = 'runclub://localhost/strava-callback';
 
 export default function StravaConnectScreen() {
   const { tokens } = useTheme();

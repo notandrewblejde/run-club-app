@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  Pressable,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar, History } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -34,7 +43,7 @@ function addDays(base: Date, days: number): Date {
 }
 
 export default function NewGoalScreen() {
-  const { tokens } = useTheme();
+  const { tokens, isDark } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const { id: clubId } = useLocalSearchParams<{ id: string }>();
   const [name, setName] = useState('');
@@ -43,6 +52,13 @@ export default function NewGoalScreen() {
   const [customStart, setCustomStart] = useState<Date>(() => new Date());
   const [customEnd, setCustomEnd] = useState<Date>(() => addDays(new Date(), 30));
   const [pickerOpen, setPickerOpen] = useState<null | 'start' | 'end'>(null);
+  /** Working value while the date sheet is open (committed on Done). */
+  const [draftDate, setDraftDate] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    if (pickerOpen === 'start') setDraftDate(customStart);
+    else if (pickerOpen === 'end') setDraftDate(customEnd);
+  }, [pickerOpen, customStart, customEnd]);
   const createGoal = useCreateGoal(clubId ?? '');
   const { setActions, clearActions } = useBottomBarActions();
 
@@ -162,32 +178,35 @@ export default function NewGoalScreen() {
         </View>
 
         {durationKey === 'custom' ? (
-          <View style={styles.customRow}>
-            <TouchableOpacity
-              style={styles.dateField}
-              onPress={() => setPickerOpen('start')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.dateFieldLabel}>Start</Text>
-              <Text style={styles.dateFieldValue}>{isoDate(customStart)}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.dateField}
-              onPress={() => setPickerOpen('end')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.dateFieldLabel}>End</Text>
-              <Text style={styles.dateFieldValue}>{isoDate(customEnd)}</Text>
-            </TouchableOpacity>
+          <>
+            <Text style={styles.customHint}>Tap start or end to change dates.</Text>
+            <View style={styles.customRow}>
+              <TouchableOpacity
+                style={styles.dateField}
+                onPress={() => setPickerOpen('start')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.dateFieldLabel}>Start</Text>
+                <Text style={styles.dateFieldValue}>{isoDate(customStart)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dateField}
+                onPress={() => setPickerOpen('end')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.dateFieldLabel}>End</Text>
+                <Text style={styles.dateFieldValue}>{isoDate(customEnd)}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <View style={styles.dateNote}>
+            <Calendar size={14} color={tokens.textSecondary} />
+            <Text style={styles.dateNoteText}>
+              {dateRange.start_date} → {dateRange.end_date}
+            </Text>
           </View>
-        ) : null}
-
-        <View style={styles.dateNote}>
-          <Calendar size={14} color={tokens.textSecondary} />
-          <Text style={styles.dateNoteText}>
-            {dateRange.start_date} → {dateRange.end_date}
-          </Text>
-        </View>
+        )}
 
         {customRangeInvalid ? (
           <Text style={styles.warn}>End date must be after start date.</Text>
@@ -204,22 +223,56 @@ export default function NewGoalScreen() {
         ) : null}
       </View>
 
-      {pickerOpen ? (
-        <DateTimePicker
-          value={pickerOpen === 'start' ? customStart : customEnd}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          onChange={(_event, selected) => {
-            // On Android the picker dismisses itself; on iOS it stays open
-            // until we close it. Close in both cases when a value comes back.
-            const which = pickerOpen;
-            setPickerOpen(null);
-            if (!selected) return;
-            if (which === 'start') setCustomStart(selected);
-            else setCustomEnd(selected);
-          }}
-        />
-      ) : null}
+      <Modal
+        visible={pickerOpen !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPickerOpen(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setPickerOpen(null)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setPickerOpen(null)} hitSlop={12}>
+                <Text style={styles.modalHeaderBtn}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>
+                {pickerOpen === 'start' ? 'Start date' : 'End date'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (pickerOpen === 'start') {
+                    setCustomStart(draftDate);
+                    if (draftDate.getTime() > customEnd.getTime()) {
+                      setCustomEnd(addDays(draftDate, 1));
+                    }
+                  } else {
+                    const nextEnd =
+                      draftDate.getTime() < customStart.getTime() ? customStart : draftDate;
+                    setCustomEnd(nextEnd);
+                  }
+                  setPickerOpen(null);
+                }}
+                hitSlop={12}
+              >
+                <Text style={styles.modalHeaderBtnPrimary}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            {pickerOpen ? (
+              <DateTimePicker
+                key={pickerOpen}
+                value={draftDate}
+                mode="date"
+                display="spinner"
+                themeVariant={isDark ? 'dark' : 'light'}
+                accentColor={tokens.accentBlue}
+                onChange={(_event, selected) => {
+                  if (selected) setDraftDate(selected);
+                }}
+              />
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -305,5 +358,47 @@ function makeStyles(t: ThemeTokens) {
       borderColor: t.divider,
     },
     backfillText: { color: t.textSecondary, fontSize: 12, flex: 1, lineHeight: 16 },
+    customHint: {
+      color: t.textMuted,
+      fontSize: 12,
+      marginTop: 8,
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      backgroundColor: t.surfaceSheet,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingBottom: 28,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.divider,
+    },
+    modalTitle: {
+      color: t.text,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    modalHeaderBtn: {
+      color: t.textSecondary,
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    modalHeaderBtnPrimary: {
+      color: t.accentBlue,
+      fontSize: 16,
+      fontWeight: '600',
+    },
   });
 }

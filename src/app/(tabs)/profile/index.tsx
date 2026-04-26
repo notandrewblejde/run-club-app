@@ -26,6 +26,9 @@ import {
   Trophy,
   ChevronRight,
   ChevronDown,
+  HeartPulse,
+  Watch,
+  Footprints,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
@@ -98,6 +101,13 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     await logout();
     router.replace('/auth/login');
+  };
+
+  const showIntegrationSoon = (name: string) => {
+    Alert.alert(
+      `${name} (coming soon)`,
+      'This source is not wired up yet. When it is, you will connect it here the same way as Strava.',
+    );
   };
 
   const currentAppearance = APPEARANCE_OPTIONS.find((o) => o.key === preference);
@@ -174,6 +184,7 @@ export default function ProfileScreen() {
           <View style={styles.statsGrid}>
             <Stat label="Activities" value={`${profile.stats.activities_30d}`} styles={styles} />
             <Stat label="Distance" value={formatMiles(profile.stats.distance_miles_30d)} styles={styles} />
+            <Stat label="Time" value={formatDuration(profile.stats.moving_seconds_30d)} styles={styles} />
           </View>
         </View>
 
@@ -222,12 +233,12 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Strava</Text>
+          <Text style={styles.sectionTitle}>Connected apps</Text>
           {profile.strava_connected ? (
             <>
               <View style={[styles.row, { backgroundColor: tokens.surfaceElevated }]}>
-                <Text style={styles.rowText}>Connected</Text>
-                <Text style={styles.rowMuted}>Auto-syncing</Text>
+                <Text style={styles.rowText}>Strava</Text>
+                <Text style={styles.rowMuted}>Connected · auto-sync</Text>
               </View>
               <TouchableOpacity style={styles.row} onPress={handleSync} disabled={sync.isPending}>
                 <RefreshCw size={16} color={tokens.accentBlue} />
@@ -243,10 +254,42 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.row, { backgroundColor: tokens.stravaOrange }]}
               onPress={() => router.push('/(tabs)/strava-connect')}
+              activeOpacity={0.7}
             >
               <Text style={[styles.rowText, { color: '#fff' }]}>Connect Strava</Text>
+              <ChevronRight size={16} color="rgba(255,255,255,0.9)" />
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => showIntegrationSoon('Apple Health')}
+            activeOpacity={0.7}
+          >
+            <HeartPulse size={16} color={tokens.text} />
+            <Text style={[styles.rowText, { marginLeft: 10 }]}>Apple Health</Text>
+            <Text style={[styles.rowMuted, { marginRight: 6 }]}>Coming soon</Text>
+            <ChevronRight size={16} color={tokens.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => showIntegrationSoon('Google Fit')}
+            activeOpacity={0.7}
+          >
+            <Footprints size={16} color={tokens.text} />
+            <Text style={[styles.rowText, { marginLeft: 10 }]}>Google Fit</Text>
+            <Text style={[styles.rowMuted, { marginRight: 6 }]}>Coming soon</Text>
+            <ChevronRight size={16} color={tokens.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => showIntegrationSoon('Garmin Connect')}
+            activeOpacity={0.7}
+          >
+            <Watch size={16} color={tokens.text} />
+            <Text style={[styles.rowText, { marginLeft: 10 }]}>Garmin Connect</Text>
+            <Text style={[styles.rowMuted, { marginRight: 6 }]}>Coming soon</Text>
+            <ChevronRight size={16} color={tokens.textMuted} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.logoutSection}>
