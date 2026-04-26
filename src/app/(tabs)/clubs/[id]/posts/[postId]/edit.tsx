@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { libraryMultiImagePickerOptions } from '@/utils/imagePicker';
 import { Camera, X, Trash2 } from 'lucide-react-native';
 import { useClubPost, useDeletePost, usePresignPostPhoto, useUpdatePost } from '@/api/hooks';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
@@ -82,11 +83,7 @@ export default function EditClubPostScreen() {
         Alert.alert('Permission needed', 'Photo library access is required to add photos.');
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        quality: 0.8,
-      });
+      const result = await ImagePicker.launchImageLibraryAsync(libraryMultiImagePickerOptions());
       if (result.canceled || !result.assets?.length) return;
 
       setUploading(true);
