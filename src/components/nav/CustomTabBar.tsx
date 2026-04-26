@@ -239,7 +239,10 @@ function ActionButton({ action, tokens }: { action: BottomBarAction; tokens: The
     action.loading ? (
       <ActivityIndicator color={fg} size="small" />
     ) : action.icon === 'pencil' ? (
-      <Pencil size={20} color={fg} strokeWidth={2} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Pencil size={18} color={fg} strokeWidth={2} />
+        <Text style={{ color: fg, fontSize: 14, fontWeight: '600' }}>Edit</Text>
+      </View>
     ) : action.icon === 'plus' ? (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Plus size={18} color={fg} strokeWidth={2.2} />
@@ -262,7 +265,6 @@ function ActionButton({ action, tokens }: { action: BottomBarAction; tokens: The
           borderWidth: isOutlined ? 1 : 0,
           borderColor: isOutlined ? accent : undefined,
           opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
-          minWidth: action.icon === 'pencil' ? 52 : undefined,
         },
       ]}
     >
