@@ -179,7 +179,10 @@ export default function UserProfileScreen() {
             key={a.id}
             activity={a}
             onPress={() =>
-              router.push(`/(tabs)/activity/${a.id}?from=profile&profileId=${encodeURIComponent(id)}`)
+              router.push(
+                `/(tabs)/activity/${a.id}?from=profile&profileId=${encodeURIComponent(id)}`,
+                { withAnchor: true },
+              )
             }
           />
         ))

@@ -11,6 +11,8 @@ export interface BottomBarAction {
   color?: 'primary' | 'error';
   loading?: boolean;
   disabled?: boolean;
+  /** Optional: render icon (and compact label) instead of text-only. */
+  icon?: 'plus' | 'pencil';
 }
 
 interface BottomBarActionsContextValue {

@@ -60,7 +60,9 @@ export default function FeedScreen() {
         renderItem={({ item }) => (
           <ActivityCard
             activity={item}
-            onPress={() => router.push(`/(tabs)/activity/${item.id}`)}
+            onPress={() =>
+              router.push(`/(tabs)/activity/${item.id}`, { withAnchor: true })
+            }
           />
         )}
         contentContainerStyle={styles.content}

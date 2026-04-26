@@ -10,7 +10,15 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import { Target, Trophy, Newspaper, Pencil, Trash2 } from 'lucide-react-native';
+import {
+  Target,
+  Trophy,
+  Newspaper,
+  Pencil,
+  Trash2,
+  Plus,
+  ChevronRight,
+} from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   useClub,
@@ -71,6 +79,13 @@ export default function ClubDetailScreen() {
     enabled: homeTab === 'leaderboard' && !!lbSpec,
   });
 
+  /** Club-wide miles toward the selected goal — denominator for “share of completed” on the Goal leaderboard. */
+  const goalProgressForLb = useGoalProgress(
+    id ?? '',
+    homeTab === 'leaderboard' && lbMode === 'goal' ? lbGoalId : undefined,
+  );
+  const goalCompletedMiles = Number(goalProgressForLb.data?.total_distance_miles ?? 0);
+
   useEffect(() => {
     if (lbMode !== 'goal' || allGoals.length === 0) return;
     setLbGoalId((prev) => (prev && allGoals.some((g) => g.id === prev) ? prev : allGoals[0].id));
@@ -92,23 +107,19 @@ export default function ClubDetailScreen() {
     }
     const next: BottomBarAction[] = [
       {
-        label: 'New post',
+        label: '+ Post',
         variant: 'outlined',
+        icon: 'plus',
         onPress: () => router.push(`/(tabs)/clubs/${id}/posts/new`),
       },
     ];
     if (canManage) {
-      next.push(
-        {
-          label: 'Edit club',
-          variant: 'outlined',
-          onPress: () => router.push(`/(tabs)/clubs/${id}/edit`),
-        },
-        {
-          label: 'Add goal',
-          onPress: () => router.push(`/(tabs)/clubs/${id}/goals/new`),
-        },
-      );
+      next.push({
+        label: 'Edit club',
+        variant: 'outlined',
+        icon: 'pencil',
+        onPress: () => router.push(`/(tabs)/clubs/${id}/edit`),
+      });
     }
     setActions(next);
     return () => clearActions();
@@ -147,7 +158,7 @@ export default function ClubDetailScreen() {
             {goals.length === 0 ? (
               <Text style={styles.empty}>
                 {canManage
-                  ? 'No active goals yet. Tap "Add goal" below to create one.'
+                  ? 'No active goals yet. Use Add goal to create one.'
                   : 'No active goals. An admin can create one.'}
               </Text>
             ) : (
@@ -162,6 +173,19 @@ export default function ClubDetailScreen() {
                 />
               ))
             )}
+            {canManage ? (
+              <TouchableOpacity
+                style={[styles.goalAddRow, { backgroundColor: tokens.primary }]}
+                onPress={() => router.push(`/(tabs)/clubs/${id}/goals/new`)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Add goal"
+              >
+                <Plus size={20} color={tokens.onPrimary} strokeWidth={2.2} />
+                <Text style={[styles.goalAddRowText, { color: tokens.onPrimary }]}>Add goal</Text>
+                <ChevronRight size={18} color={tokens.onPrimary} style={{ opacity: 0.85 }} />
+              </TouchableOpacity>
+            ) : null}
           </Section>
 
           <ClubHomePills
@@ -241,8 +265,9 @@ export default function ClubDetailScreen() {
                   <Text style={styles.leaderboardScreenTitle}>Leaderboard</Text>
                   <Text style={styles.leaderboardHint}>
                     Top 10 by miles. 30 days = runs in the last 30 days. All time = runs
-                    since each person joined this club. Goal = miles counted for the
-                    selected goal.
+                    since each person joined this club. Goal = miles toward the selected
+                    goal; each row shows that person’s share of the club’s total miles toward
+                    this goal so far.
                   </Text>
                 </View>
               </View>
@@ -333,15 +358,37 @@ export default function ClubDetailScreen() {
                   {lbMode === 'goal' ? 'No contributions for this goal yet.' : 'No distance yet for this view.'}
                 </Text>
               ) : (
-                (clubLbQ.data?.data ?? []).map((e) => (
-                  <View key={e.user?.id ?? String(e.rank)} style={styles.leaderboardRowMain}>
-                    <Text style={styles.leaderboardRankMain}>{e.rank}.</Text>
-                    <Text style={styles.leaderboardNameMain}>{e.user?.name ?? 'Unnamed'}</Text>
-                    <Text style={styles.leaderboardMilesMain}>
-                      {formatMiles(Number(e.total_distance_miles))}
-                    </Text>
-                  </View>
-                ))
+                (clubLbQ.data?.data ?? []).map((e) => {
+                  const miles = Number(e.total_distance_miles);
+                  const key = e.user?.id ?? String(e.rank);
+                  if (lbMode === 'goal' && goalCompletedMiles > 0) {
+                    const pct = (miles / goalCompletedMiles) * 100;
+                    return (
+                      <View key={key} style={styles.goalLbRow}>
+                        <View style={styles.goalLbTop}>
+                          <Text style={styles.leaderboardRankMain}>{e.rank}.</Text>
+                          <Text style={styles.leaderboardNameMain}>{e.user?.name ?? 'Unnamed'}</Text>
+                          <Text style={styles.leaderboardMilesMain}>{formatMiles(miles)}</Text>
+                        </View>
+                        <View style={styles.goalLbBarRow}>
+                          <View style={[styles.progressBar, styles.goalLbBar]}>
+                            <View style={[styles.progressFill, { width: `${pct}%` }]} />
+                          </View>
+                          <Text style={[styles.goalLbPct, { color: tokens.accentOrange }]}>
+                            {Math.round(pct)}%
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  }
+                  return (
+                    <View key={key} style={styles.leaderboardRowMain}>
+                      <Text style={styles.leaderboardRankMain}>{e.rank}.</Text>
+                      <Text style={styles.leaderboardNameMain}>{e.user?.name ?? 'Unnamed'}</Text>
+                      <Text style={styles.leaderboardMilesMain}>{formatMiles(miles)}</Text>
+                    </View>
+                  );
+                })
               )}
             </View>
           ) : null}
@@ -584,9 +631,9 @@ function GoalCard({
         <View style={styles.leaderboard}>
           <View style={styles.leaderboardHeader}>
             <Trophy size={12} color={tokens.accentYellow} />
-            <Text style={styles.leaderboardTitle}>Top contributors</Text>
+            <Text style={styles.leaderboardTitle}>Top 3 contributors</Text>
           </View>
-          {top.slice(0, 5).map((e) => (
+          {top.slice(0, 3).map((e) => (
             <View key={e.user?.id ?? e.rank} style={styles.leaderboardRow}>
               <Text style={styles.leaderboardRank}>{e.rank}.</Text>
               <Text style={styles.leaderboardName}>{e.user?.name ?? 'Unnamed'}</Text>
@@ -647,6 +694,35 @@ function makeStyles(t: ThemeTokens) {
       borderWidth: StyleSheet.hairlineWidth,
     },
     goalChipText: { fontSize: 13, fontWeight: '600', maxWidth: 200 },
+    goalAddRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 10,
+    },
+    goalAddRowText: { fontSize: 15, fontWeight: '600', flex: 1 },
+    goalLbRow: {
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.divider,
+      gap: 8,
+    },
+    goalLbTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    goalLbBarRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingLeft: 36,
+    },
+    goalLbBar: { flex: 1 },
+    goalLbPct: { fontSize: 12, fontWeight: '700', minWidth: 36, textAlign: 'right' },
     leaderboardRowMain: {
       flexDirection: 'row',
       alignItems: 'center',

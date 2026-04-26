@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Pencil, Plus } from 'lucide-react-native';
 import type { ComponentProps } from 'react';
 import { router } from 'expo-router';
 import { useBottomBarActions, type BottomBarAction } from './BottomBarActionsContext';
@@ -204,6 +205,21 @@ function ActionButton({ action, tokens }: { action: BottomBarAction; tokens: The
   const accent = isError ? tokens.error : tokens.primary;
   const textOnFill = isError ? '#ffffff' : tokens.onPrimary;
   const disabled = action.disabled || action.loading;
+  const fg = isOutlined ? accent : textOnFill;
+
+  const inner =
+    action.loading ? (
+      <ActivityIndicator color={fg} size="small" />
+    ) : action.icon === 'pencil' ? (
+      <Pencil size={20} color={fg} strokeWidth={2} />
+    ) : action.icon === 'plus' ? (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Plus size={18} color={fg} strokeWidth={2.2} />
+        <Text style={{ color: fg, fontSize: 14, fontWeight: '600' }}>Post</Text>
+      </View>
+    ) : (
+      <Text style={{ color: fg, fontSize: 14, fontWeight: '600' }}>{action.label}</Text>
+    );
 
   return (
     <Pressable
@@ -218,22 +234,11 @@ function ActionButton({ action, tokens }: { action: BottomBarAction; tokens: The
           borderWidth: isOutlined ? 1 : 0,
           borderColor: isOutlined ? accent : undefined,
           opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
+          minWidth: action.icon === 'pencil' ? 52 : undefined,
         },
       ]}
     >
-      {action.loading ? (
-        <ActivityIndicator color={isOutlined ? accent : textOnFill} size="small" />
-      ) : (
-        <Text
-          style={{
-            color: isOutlined ? accent : textOnFill,
-            fontSize: 14,
-            fontWeight: '600',
-          }}
-        >
-          {action.label}
-        </Text>
-      )}
+      {inner}
     </Pressable>
   );
 }
