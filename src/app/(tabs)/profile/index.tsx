@@ -25,6 +25,7 @@ import {
   Users,
   Trophy,
   ChevronRight,
+  ChevronDown,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
@@ -116,14 +117,16 @@ export default function ProfileScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Profile</Text>
-          <TouchableOpacity
-            hitSlop={12}
-            onPress={() => router.push('/(tabs)/profile/edit')}
-            accessibilityRole="button"
-            accessibilityLabel="Edit profile"
-          >
-            <Pencil size={18} color={tokens.textSecondary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/(tabs)/profile/edit')}
+              accessibilityRole="button"
+              accessibilityLabel="Edit profile"
+            >
+              <Pencil size={18} color={tokens.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.identity}>
@@ -214,7 +217,7 @@ export default function ProfileScreen() {
             <Text style={[styles.rowText, { marginLeft: 10 }]}>
               {currentAppearance?.label ?? 'System'}
             </Text>
-            <Text style={styles.rowMuted}>Tap to change</Text>
+            <ChevronDown size={16} color={tokens.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -246,10 +249,18 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <TouchableOpacity style={styles.logout} onPress={handleLogout}>
-          <LogOut size={16} color={tokens.textSecondary} />
-          <Text style={styles.logoutText}>Log out</Text>
-        </TouchableOpacity>
+        <View style={styles.logoutSection}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Log out"
+          >
+            <LogOut size={16} color={tokens.error} />
+            <Text style={styles.logoutText}>Log out</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       <AppearanceSheet
@@ -357,6 +368,17 @@ function makeStyles(t: ThemeTokens) {
       paddingBottom: 12,
     },
     title: { color: t.text, fontSize: 28, fontWeight: '700' },
+    headerActions: { flexDirection: 'row', gap: 8 },
+    iconButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: t.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     identity: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
     avatar: { width: 88, height: 88, borderRadius: 44, marginBottom: 12 },
     avatarFallback: {
@@ -407,15 +429,19 @@ function makeStyles(t: ThemeTokens) {
       marginRight: 8,
     },
     badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-    logout: {
-      marginTop: 32,
+    logoutSection: { marginTop: 32, paddingHorizontal: 20 },
+    logoutButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 6,
+      gap: 8,
       paddingVertical: 14,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.error,
+      backgroundColor: 'transparent',
     },
-    logoutText: { color: t.textSecondary, fontSize: 14 },
+    logoutText: { color: t.error, fontSize: 14, fontWeight: '600' },
     errorText: { color: t.textSecondary },
 
     modalBackdrop: {

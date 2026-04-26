@@ -24,6 +24,7 @@ export const qk = {
   me: () => ['me'] as const,
   user: (userId: string) => ['user', userId] as const,
   userSearch: (q: string) => ['users', 'search', q] as const,
+  suggestedUsers: () => ['users', 'suggested'] as const,
 
   activities: (scope: 'me' | 'following') => ['activities', scope] as const,
   activity: (id: string) => ['activity', id] as const,

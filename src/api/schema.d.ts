@@ -223,7 +223,13 @@ export interface paths {
   };
   '/v1/users': {
     get: {
-      parameters: { query: { q: string; limit?: number } };
+      parameters: { query: { q: string; page?: number; limit?: number } };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['User']> } } };
+    };
+  };
+  '/v1/users/suggested': {
+    get: {
+      parameters: Record<string, never>;
       responses: { 200: { content: { 'application/json': ApiList<components['schemas']['User']> } } };
     };
   };

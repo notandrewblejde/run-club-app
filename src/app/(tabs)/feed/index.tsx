@@ -11,9 +11,10 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronDown, Check } from 'lucide-react-native';
+import { ChevronDown, Check, Search } from 'lucide-react-native';
 import { useFeed } from '@/api/hooks';
 import { ActivityCard } from '@/components/activity/ActivityCard';
+import { EmptyState } from '@/components/EmptyState';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 
@@ -43,6 +44,14 @@ export default function FeedScreen() {
           <Text style={styles.title}>{SCOPE_LABEL[scope]}</Text>
           <ChevronDown size={22} color={tokens.textMuted} strokeWidth={2.2} />
         </Pressable>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => router.push('/(tabs)/discover')}
+          accessibilityRole="button"
+          accessibilityLabel="Find runners"
+        >
+          <Search size={18} color={tokens.text} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -63,17 +72,18 @@ export default function FeedScreen() {
           />
         }
         ListEmptyComponent={
-          isLoading ? null : (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>
-                {scope === 'following' ? 'Quiet feed' : 'No runs yet'}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {scope === 'following'
-                  ? 'Follow other runners and their activity will show up here.'
-                  : 'Connect Strava to sync your activities.'}
-              </Text>
-            </View>
+          isLoading ? null : scope === 'following' ? (
+            <EmptyState
+              title="Quiet feed"
+              body="Follow other runners and their activity will show up here."
+              ctaLabel="Find runners"
+              onCtaPress={() => router.push('/(tabs)/discover')}
+            />
+          ) : (
+            <EmptyState
+              title="No runs yet"
+              body="Connect Strava to sync your activities."
+            />
           )
         }
         ListFooterComponent={
@@ -143,18 +153,27 @@ function ScopePicker({
 function makeStyles(t: ThemeTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.background },
-    header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 8 },
-    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
-    title: { fontSize: 28, fontWeight: '700', color: t.text },
-    content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 140 },
-    emptyContainer: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: 32 },
-    emptyTitle: { fontSize: 18, fontWeight: '600', color: t.text, marginBottom: 8 },
-    emptySubtitle: {
-      fontSize: 13,
-      color: t.textMuted,
-      textAlign: 'center',
-      lineHeight: 18,
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingTop: 60,
+      paddingBottom: 8,
     },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    title: { fontSize: 28, fontWeight: '700', color: t.text },
+    iconButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: t.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 140 },
     errorBanner: {
       backgroundColor: t.errorBg,
       paddingHorizontal: 16,

@@ -7,11 +7,13 @@ import { useBottomBarActions, type BottomBarAction } from './BottomBarActionsCon
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 
+interface NavState {
+  index: number;
+  routes: Array<{ key: string; name: string; state?: NavState }>;
+}
+
 interface TabBarProps {
-  state: {
-    index: number;
-    routes: Array<{ key: string; name: string }>;
-  };
+  state: NavState;
   navigation: {
     navigate: (name: string) => void;
     emit: (event: {
@@ -35,23 +37,41 @@ const ICONS: Record<string, IconConfig> = {
   profile: { active: 'account', inactive: 'account-outline' },
 };
 
+// Visual order of tabs in the bottom pill. expo-router auto-discovers tab
+// folders alphabetically, so without this they'd render clubs → feed → profile.
+const TAB_ORDER: readonly string[] = ['feed', 'clubs', 'profile'];
+
 function matchKey(name: string): string | undefined {
   if (ICONS[name]) return name;
   const stripped = name.endsWith('/index') ? name.slice(0, -'/index'.length) : null;
   return stripped && ICONS[stripped] ? stripped : undefined;
 }
 
-const OPT_OUT_ROUTES = new Set<string>(['activity/[id]']);
+// Top-level route names where we hide the bottom bar entirely (e.g. activity
+// detail screens, which want a chrome-free reading experience). After the
+// structural Stack-per-tab refactor the active tab is just "activity" — the
+// inner stack screen "[id]" is one level deeper.
+const OPT_OUT_ROUTES = new Set<string>(['activity']);
 
 export default function CustomTabBar({ state, navigation }: TabBarProps) {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const activeRoute = state.routes[state.index];
   const activeName = activeRoute?.name ?? '';
-  const isOnRoot = !!matchKey(activeName);
+  const tabKey = matchKey(activeName);
+  // If the active tab has a nested navigator (Stack), it's only "at the root"
+  // when its own nested index is 0 — otherwise we're on a pushed detail screen
+  // inside the tab and want the DetailBar.
+  const nested = activeRoute?.state;
+  const onTabRoot = !nested || nested.index === 0;
+  const isOnRoot = !!tabKey && onTabRoot;
+  // The OPT_OUT name may live inside a nested stack (e.g. activity/[id] when
+  // pushed from feed in the future), so check both levels.
+  const innerActiveName =
+    nested && nested.routes[nested.index]?.name ? nested.routes[nested.index].name : '';
   const { actions } = useBottomBarActions();
 
-  if (OPT_OUT_ROUTES.has(activeName)) return null;
+  if (OPT_OUT_ROUTES.has(activeName) || OPT_OUT_ROUTES.has(innerActiveName)) return null;
   if (isOnRoot) {
     return <RootBar state={state} navigation={navigation} styles={styles} tokens={tokens} />;
   }
@@ -64,7 +84,14 @@ function RootBar({
   styles,
   tokens,
 }: TabBarProps & { styles: Styles; tokens: ThemeTokens }) {
-  const visibleRoutes = state.routes.filter((r) => matchKey(r.name));
+  const visibleRoutes = state.routes
+    .filter((r) => matchKey(r.name))
+    .slice()
+    .sort((a, b) => {
+      const ai = TAB_ORDER.indexOf(matchKey(a.name)!);
+      const bi = TAB_ORDER.indexOf(matchKey(b.name)!);
+      return ai - bi;
+    });
 
   return (
     <View style={styles.container} pointerEvents="box-none">
@@ -116,7 +143,18 @@ function DetailBar({
   styles: Styles;
   tokens: ThemeTokens;
 }) {
-  const goBack = () => router.back();
+  // Some detail screens (discover, challenges, ai, activity/[id], users/[id]) are
+  // flat top-level hidden tabs rather than being nested in a Stack. Reaching
+  // them via `router.push` switches tabs instead of pushing — so `router.back()`
+  // has no history to pop and React Navigation throws "GO_BACK was not handled".
+  // Falling through to Home keeps the user unstuck.
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/feed');
+    }
+  };
 
   if (actions.length === 0) {
     return (

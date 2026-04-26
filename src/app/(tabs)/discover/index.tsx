@@ -9,9 +9,17 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Search, Users, Globe, UserPlus } from 'lucide-react-native';
+import { Search, Users, Globe, UserPlus, Check } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useFollowUser, useJoinClub, usePublicClubs, useUserSearch } from '@/api/hooks';
+import {
+  useFollowUser,
+  useJoinClub,
+  usePublicClubs,
+  useSuggestedUsers,
+  useUserSearch,
+} from '@/api/hooks';
+import { UserRow } from '@/components/social/UserRow';
+import { useDebounce } from '@/utils/useDebounce';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 
@@ -19,10 +27,16 @@ export default function DiscoverScreen() {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 300);
   const publicClubsQ = usePublicClubs();
-  const usersQ = useUserSearch(query);
+  const usersQ = useUserSearch(debouncedQuery);
+  const suggestedQ = useSuggestedUsers();
   const join = useJoinClub();
   const follow = useFollowUser();
+  // Local set of users whose follow mutation has succeeded in this session.
+  // Search/suggested rows aren't keyed by qk.user, so we can't read follow
+  // state from the cache; tracking it here gives the button immediate feedback.
+  const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
 
   const handleJoin = async (clubId: string) => {
     try {
@@ -35,16 +49,45 @@ export default function DiscoverScreen() {
   };
 
   const handleFollow = async (userId: string) => {
+    // Optimistic UI: flip the button immediately, roll back on failure.
+    setFollowedIds((prev) => new Set(prev).add(userId));
     try {
       await follow.mutateAsync(userId);
-      Alert.alert('Following', 'You will now see their activities in your feed.');
     } catch (e: unknown) {
+      setFollowedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
       Alert.alert('Could not follow', (e as Error)?.message ?? 'Try again later');
     }
   };
 
+  const renderFollowButton = (userId: string) => {
+    const isFollowed = followedIds.has(userId);
+    return (
+      <TouchableOpacity
+        style={[styles.action, isFollowed && styles.actionFollowed]}
+        onPress={() => !isFollowed && handleFollow(userId)}
+        disabled={isFollowed}
+        accessibilityRole="button"
+        accessibilityLabel={isFollowed ? 'Following' : 'Follow'}
+      >
+        {isFollowed ? (
+          <Check size={14} color={tokens.text} />
+        ) : (
+          <UserPlus size={14} color={tokens.onPrimary} />
+        )}
+        <Text style={[styles.actionText, isFollowed && styles.actionFollowedText]}>
+          {isFollowed ? 'Following' : 'Follow'}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   const showingSearch = query.trim().length >= 2;
   const users = usersQ.data?.data ?? [];
+  const suggested = suggestedQ.data?.data ?? [];
   const publicClubs = publicClubsQ.data?.data ?? [];
 
   return (
@@ -75,25 +118,22 @@ export default function DiscoverScreen() {
               <Text style={styles.empty}>No runners match.</Text>
             ) : (
               users.map((u) => (
-                <View key={u.id} style={styles.row}>
-                  <View style={styles.rowAvatar}>
-                    <Text style={styles.rowInitial}>
-                      {(u.name ?? '?').slice(0, 1).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rowTitle}>{u.name ?? 'Unnamed'}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.action} onPress={() => handleFollow(u.id)}>
-                    <UserPlus size={14} color={tokens.onPrimary} />
-                    <Text style={styles.actionText}>Follow</Text>
-                  </TouchableOpacity>
-                </View>
+                <UserRow key={u.id} user={u} right={renderFollowButton(u.id)} />
               ))
             )}
           </>
         ) : (
           <>
+            {suggested.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>People you may know</Text>
+                {suggested.map((u) => (
+                  <UserRow key={u.id} user={u} right={renderFollowButton(u.id)} />
+                ))}
+                <View style={{ height: 16 }} />
+              </>
+            ) : null}
+
             <Text style={styles.sectionTitle}>Public clubs</Text>
             {publicClubsQ.isLoading ? (
               <ActivityIndicator color={tokens.accentBlue} style={{ marginTop: 12 }} />
@@ -164,7 +204,6 @@ function makeStyles(t: ThemeTokens) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    rowInitial: { color: '#fff', fontWeight: '700' },
     rowTitle: { color: t.text, fontWeight: '600' },
     rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
     rowMetaText: { color: t.textMuted, fontSize: 11 },
@@ -177,6 +216,12 @@ function makeStyles(t: ThemeTokens) {
       paddingVertical: 6,
       borderRadius: 999,
     },
+    actionFollowed: {
+      backgroundColor: t.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+    },
     actionText: { color: t.onPrimary, fontWeight: '600', fontSize: 13 },
+    actionFollowedText: { color: t.text },
   });
 }

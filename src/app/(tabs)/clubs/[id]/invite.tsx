@@ -7,12 +7,12 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
   Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Search, UserPlus } from 'lucide-react-native';
 import { useInviteMember, useUserSearch } from '@/api/hooks';
+import { UserRow } from '@/components/social/UserRow';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 
@@ -68,26 +68,19 @@ export default function InviteMemberScreen() {
           keyExtractor={(u) => u.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <View style={styles.row}>
-              {item.avatar_url ? (
-                <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
-              ) : (
-                <View style={[styles.avatar, styles.avatarFallback]}>
-                  <Text style={styles.avatarText}>
-                    {(item.name ?? '?').slice(0, 1).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.name}>{item.name ?? 'Unnamed'}</Text>
-              <TouchableOpacity
-                style={styles.inviteBtn}
-                onPress={() => handleInvite(item.id, item.name)}
-                disabled={invite.isPending}
-              >
-                <UserPlus size={14} color={tokens.onPrimary} />
-                <Text style={styles.inviteLabel}>Invite</Text>
-              </TouchableOpacity>
-            </View>
+            <UserRow
+              user={item}
+              right={
+                <TouchableOpacity
+                  style={styles.inviteBtn}
+                  onPress={() => handleInvite(item.id, item.name)}
+                  disabled={invite.isPending}
+                >
+                  <UserPlus size={14} color={tokens.onPrimary} />
+                  <Text style={styles.inviteLabel}>Invite</Text>
+                </TouchableOpacity>
+              }
+            />
           )}
         />
       )}
@@ -114,25 +107,6 @@ function makeStyles(t: ThemeTokens) {
     searchInput: { flex: 1, color: t.text, fontSize: 14 },
     hint: { color: t.textMuted, paddingHorizontal: 20, marginTop: 24 },
     list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 140 },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      backgroundColor: t.surface,
-      padding: 12,
-      borderRadius: 12,
-      marginBottom: 8,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.divider,
-    },
-    avatar: { width: 36, height: 36, borderRadius: 18 },
-    avatarFallback: {
-      backgroundColor: t.accentBlue,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarText: { color: '#fff', fontWeight: '700' },
-    name: { color: t.text, fontWeight: '600', flex: 1 },
     inviteBtn: {
       flexDirection: 'row',
       alignItems: 'center',

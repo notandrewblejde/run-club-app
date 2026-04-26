@@ -11,6 +11,7 @@ import {
 import { Plus, Users, Globe, Lock, Search } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useMyClubs } from '@/api/hooks';
+import { EmptyState } from '@/components/EmptyState';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 import type { components } from '@/api/schema';
@@ -68,12 +69,12 @@ export default function ClubsScreen() {
           )}
           ListEmptyComponent={
             !isLoading ? (
-              <View style={styles.empty}>
-                <Text style={styles.emptyTitle}>No clubs yet</Text>
-                <Text style={styles.emptyBody}>
-                  Tap + to create one, or head to Discover to find a public club to join.
-                </Text>
-              </View>
+              <EmptyState
+                title="No clubs yet"
+                body="Tap + to create one, or head to Discover to find a public club to join."
+                ctaLabel="Browse public clubs"
+                onCtaPress={() => router.push('/(tabs)/discover')}
+              />
             ) : null
           }
           contentContainerStyle={styles.list}
@@ -185,14 +186,6 @@ function makeStyles(t: ThemeTokens) {
     rowTitle: { color: t.text, fontWeight: '600', marginBottom: 2 },
     rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     rowMetaText: { color: t.textMuted, fontSize: 12 },
-    empty: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: 32 },
-    emptyTitle: { fontSize: 18, fontWeight: '600', color: t.text, marginBottom: 8 },
-    emptyBody: {
-      fontSize: 13,
-      color: t.textMuted,
-      textAlign: 'center',
-      lineHeight: 18,
-    },
     errorBanner: {
       backgroundColor: t.errorBg,
       paddingHorizontal: 16,

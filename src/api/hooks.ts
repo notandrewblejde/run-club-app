@@ -283,6 +283,19 @@ export function useUserSearch(q: string, opts?: { enabled?: boolean }) {
   });
 }
 
+/**
+ * "People you may know" for the authenticated viewer. Friends-of-friends with
+ * a recent-public-users fallback. Long stale time — suggestions are stable
+ * and we'd rather avoid recomputing on every Discover-tab focus.
+ */
+export function useSuggestedUsers() {
+  return useQuery({
+    queryKey: qk.suggestedUsers(),
+    queryFn: async () => unwrap(api.GET('/v1/users/suggested')),
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useUpdateMe() {
   const qc = useQueryClient();
   return useMutation<
@@ -308,11 +321,38 @@ export function useUpdateMe() {
 
 export function useFollowUser() {
   const qc = useQueryClient();
-  return useMutation<{ status: 'pending' | 'accepted' }, Error, string>({
+  return useMutation<
+    { status: 'pending' | 'accepted' },
+    Error,
+    string,
+    { previous?: UserProfile }
+  >({
     mutationFn: (userId) =>
       unwrap(api.POST('/v1/users/{userId}/follow', { params: { path: { userId } } })) as Promise<{
         status: 'pending' | 'accepted';
       }>,
+    onMutate: async (userId) => {
+      // Snapshot + optimistically flip follow_status on the cached profile so
+      // the user-detail page (and anything else reading qk.user) reflects the
+      // change immediately. Default to "accepted"; if the target is private
+      // the server will respond with "pending" and the onSuccess handler
+      // re-syncs via invalidation.
+      await qc.cancelQueries({ queryKey: qk.user(userId) });
+      const previous = qc.getQueryData<UserProfile>(qk.user(userId));
+      if (previous) {
+        qc.setQueryData<UserProfile>(qk.user(userId), {
+          ...previous,
+          follow_status: 'accepted',
+          followers_count: previous.followers_count + 1,
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, userId, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(qk.user(userId), ctx.previous);
+      }
+    },
     onSuccess: (_d, userId) => {
       void qc.invalidateQueries({ queryKey: qk.user(userId) });
       void qc.invalidateQueries({ queryKey: qk.activities('following') });

@@ -15,20 +15,19 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false }}
       tabBar={(props) => <CustomTabBar {...(props as Parameters<typeof CustomTabBar>[0])} />}
     >
-      <Tabs.Screen name="discover/index" options={{ href: null }} />
-      <Tabs.Screen name="challenges/index" options={{ href: null }} />
-      <Tabs.Screen name="activity/[id]" options={{ href: null }} />
-      <Tabs.Screen name="clubs/[id]/index" options={{ href: null }} />
-      <Tabs.Screen name="clubs/[id]/members" options={{ href: null }} />
-      <Tabs.Screen name="clubs/[id]/invite" options={{ href: null }} />
-      <Tabs.Screen name="clubs/[id]/goals/new" options={{ href: null }} />
-      <Tabs.Screen name="clubs/new" options={{ href: null }} />
-      <Tabs.Screen name="profile/edit" options={{ href: null }} />
-      <Tabs.Screen name="profile/requests" options={{ href: null }} />
-      <Tabs.Screen name="users/[id]" options={{ href: null }} />
-      <Tabs.Screen name="users/[id]/followers" options={{ href: null }} />
-      <Tabs.Screen name="users/[id]/following" options={{ href: null }} />
-      <Tabs.Screen name="ai/index" options={{ href: null }} />
+      {/*
+        Every tab folder ships its own Stack via _layout.tsx — the Tabs
+        navigator only sees one screen per tab so push/back stays within the
+        tab and `router.back()` pops the inner stack instead of switching tabs.
+        The hidden tabs below register `href: null` so the default tab bar
+        wouldn't show them; our CustomTabBar separately filters the visible
+        pill to feed/clubs/profile via the ICONS map.
+      */}
+      <Tabs.Screen name="discover" options={{ href: null }} />
+      <Tabs.Screen name="challenges" options={{ href: null }} />
+      <Tabs.Screen name="activity" options={{ href: null }} />
+      <Tabs.Screen name="users" options={{ href: null }} />
+      <Tabs.Screen name="ai" options={{ href: null }} />
     </Tabs>
   );
 }

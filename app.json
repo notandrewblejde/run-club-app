@@ -6,32 +6,45 @@
     "orientation": "portrait",
     "scheme": "runclub",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0F0F0F"
+    },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.runclub.app",
+      "bundleIdentifier": "app.runclub",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSExceptionDomains": {
-            "api.runclub.gridclaw.io": {
-              "NSExceptionAllowsInsecureHTTPLoads": true,
-              "NSIncludesSubdomains": false,
-              "NSExceptionRequiresForwardSecrecy": false
-            }
-          }
-        }
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Run Club needs access to your photo library so you can choose a profile picture.",
+        "NSCameraUsageDescription": "Run Club uses the camera if you choose to take a new profile photo.",
+        "LSApplicationQueriesSchemes": [
+          "strava"
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0F0F0F"
       },
-      "package": "com.runclub.app"
+      "package": "app.runclub",
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-asset",
-      "expo-font"
-    ]
+      "expo-font",
+      "expo-image-picker",
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_AFTER_FIRST_EAS_BUILD"
+      }
+    }
   }
 }
