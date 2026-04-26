@@ -1,5 +1,13 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Platform,
+  ActivityIndicator,
+  Keyboard,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Pencil, Plus } from 'lucide-react-native';
 import type { ComponentProps } from 'react';
@@ -144,6 +152,23 @@ function DetailBar({
   styles: Styles;
   tokens: ThemeTokens;
 }) {
+  const [keyboardLift, setKeyboardLift] = useState(0);
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const subShow = Keyboard.addListener(showEvt, (e) => {
+      setKeyboardLift(e.endCoordinates?.height ?? 0);
+    });
+    const subHide = Keyboard.addListener(hideEvt, () => setKeyboardLift(0));
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
+
+  const barBottom = PILL_BOTTOM + keyboardLift;
+
   // Some detail screens (discover, challenges, ai, activity/[id], users/[id]) are
   // flat top-level hidden tabs rather than being nested in a Stack. Reaching
   // them via `router.push` switches tabs instead of pushing — so `router.back()`
@@ -160,7 +185,10 @@ function DetailBar({
   if (actions.length === 0) {
     return (
       <View
-        style={[styles.container, { justifyContent: 'flex-start', paddingLeft: 24 }]}
+        style={[
+          styles.container,
+          { bottom: barBottom, justifyContent: 'flex-start', paddingLeft: 24 },
+        ]}
         pointerEvents="box-none"
       >
         <Pressable
@@ -179,7 +207,7 @@ function DetailBar({
   }
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={[styles.container, { bottom: barBottom }]} pointerEvents="box-none">
       <View style={styles.actionPill}>
         <Pressable
           style={({ pressed }) => [styles.tabItem, pressed && styles.itemPressed]}

@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.runclub",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": [
@@ -29,7 +29,7 @@
         "backgroundColor": "#0F0F0F"
       },
       "package": "app.runclub",
-      "versionCode": 6
+      "versionCode": 7
     },
     "plugins": [
       "expo-router",
