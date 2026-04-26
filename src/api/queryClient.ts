@@ -58,4 +58,10 @@ export const qk = {
   userActivities: (userId: string) => ['user', userId, 'activities'] as const,
   followRequests: () => ['follow-requests'] as const,
   clubFeed: (clubId: string) => ['club', clubId, 'feed'] as const,
+
+  trainingGoal: () => ['training', 'goal'] as const,
+  trainingGoalFeedbackInfinite: () => ['training', 'goal', 'feedback', 'infinite'] as const,
+  trainingToday: () => ['training', 'today'] as const,
+  notificationsPreview: () => ['notifications', 'preview'] as const,
+  notificationsList: () => ['notifications', 'list'] as const,
 };

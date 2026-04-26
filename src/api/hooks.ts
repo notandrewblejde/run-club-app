@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, unwrap, unwrapNoContent, type components } from './client';
 import { qk } from './queryClient';
 
@@ -14,6 +14,10 @@ type LeaderboardEntry = components['schemas']['LeaderboardEntry'];
 type UserProfile = components['schemas']['UserProfile'];
 type User = components['schemas']['User'];
 type Follow = components['schemas']['Follow'];
+type TrainingGoalResponse = components['schemas']['TrainingGoalResponse'];
+type TrainingToday = components['schemas']['TrainingToday'];
+type Notification = components['schemas']['Notification'];
+const GOAL_FEEDBACK_PAGE_SIZE = 20;
 
 // ---------- Activities ----------
 
@@ -25,6 +29,115 @@ export function useFeed(scope: 'me' | 'following') {
         return unwrap(api.GET('/v1/feed/home', { params: { query: { page: 1, limit: 20 } } }));
       }
       return unwrap(api.GET('/v1/activities', { params: { query: { page: 1, limit: 20 } } }));
+    },
+  });
+}
+
+// ---------- Training & notifications ----------
+
+export function useTrainingGoal() {
+  return useQuery({
+    queryKey: qk.trainingGoal(),
+    queryFn: async () => unwrap(api.GET('/v1/me/training-goal')),
+  });
+}
+
+export function useTrainingToday() {
+  return useQuery({
+    queryKey: qk.trainingToday(),
+    queryFn: async () => unwrap(api.GET('/v1/me/training-today')),
+  });
+}
+
+export function useNotificationsPreview() {
+  return useQuery({
+    queryKey: qk.notificationsPreview(),
+    queryFn: async () => unwrap(api.GET('/v1/notifications/preview')),
+  });
+}
+
+export function useNotifications(opts?: { limit?: number }) {
+  const limit = opts?.limit ?? 50;
+  return useQuery({
+    queryKey: qk.notificationsList(),
+    queryFn: async () =>
+      unwrap(api.GET('/v1/notifications', { params: { query: { page: 1, limit } } })),
+  });
+}
+
+export function usePutTrainingGoal() {
+  const qc = useQueryClient();
+  return useMutation<TrainingGoalResponse, Error, string>({
+    mutationFn: async (goal_text) =>
+      unwrap(api.PUT('/v1/me/training-goal', { body: { goal_text } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.trainingGoal() });
+      void qc.invalidateQueries({ queryKey: qk.trainingToday() });
+      void qc.invalidateQueries({ queryKey: qk.trainingGoalFeedbackInfinite() });
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+/**
+ * Paged from newest: page 1 = most recent messages. Use {@link getNextPageParam} to load older blocks.
+ */
+export function useTrainingGoalFeedbackInfinite() {
+  return useInfiniteQuery({
+    queryKey: qk.trainingGoalFeedbackInfinite(),
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) =>
+      unwrap(
+        api.GET('/v1/me/training-goal/feedback', {
+          params: { query: { page: pageParam, limit: GOAL_FEEDBACK_PAGE_SIZE } },
+        }),
+      ),
+    getNextPageParam: (lastPage, allPages) => (lastPage.has_more ? allPages.length + 1 : undefined),
+  });
+}
+
+export function usePostTrainingGoalFeedback() {
+  const qc = useQueryClient();
+  return useMutation<{ reply: string }, Error, string>({
+    mutationFn: async (message) =>
+      unwrap(api.POST('/v1/me/training-goal/feedback', { body: { message } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.trainingGoalFeedbackInfinite() });
+      void qc.invalidateQueries({ queryKey: qk.trainingGoal() });
+      void qc.invalidateQueries({ queryKey: qk.trainingToday() });
+    },
+  });
+}
+
+export function useClearTrainingGoalFeedback() {
+  const qc = useQueryClient();
+  return useMutation<{ deleted: number }, Error, void>({
+    mutationFn: async () => unwrap(api.DELETE('/v1/me/training-goal/feedback')),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.trainingGoalFeedbackInfinite() });
+      void qc.invalidateQueries({ queryKey: qk.trainingGoal() });
+      void qc.invalidateQueries({ queryKey: qk.trainingToday() });
+    },
+  });
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation<Notification, Error, string>({
+    mutationFn: async (id) =>
+      unwrap(api.PATCH('/v1/notifications/{id}/read', { params: { path: { id } } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation<{ updated: number }, Error, void>({
+    mutationFn: async () => unwrap(api.POST('/v1/notifications/read-all')),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 }
@@ -45,6 +158,18 @@ export function useActivitySummary(id: string | undefined, opts?: { enabled?: bo
     queryFn: async () =>
       unwrap(
         api.GET('/v1/activities/{activityId}/summary', { params: { path: { activityId: id! } } }),
+      ),
+  });
+}
+
+export function useActivityCoachChat() {
+  return useMutation({
+    mutationFn: async (vars: { activityId: string; message: string }) =>
+      unwrap(
+        api.POST('/v1/activities/{activityId}/coach/chat', {
+          params: { path: { activityId: vars.activityId } },
+          body: { message: vars.message },
+        }),
       ),
   });
 }

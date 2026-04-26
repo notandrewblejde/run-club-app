@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,19 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronDown, Check, Search } from 'lucide-react-native';
-import { useFeed } from '@/api/hooks';
+import { useQueryClient } from '@tanstack/react-query';
+import { useFeed, useNotificationsPreview, useTrainingToday } from '@/api/hooks';
+import { qk } from '@/api/queryClient';
 import { ActivityCard } from '@/components/activity/ActivityCard';
 import { EmptyState } from '@/components/EmptyState';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
+import type { components } from '@/api/schema';
 
 type Scope = 'me' | 'following';
+type TrainingToday = components['schemas']['TrainingToday'];
+type Notification = components['schemas']['Notification'];
+type NotifPreview = { unread_count: number; latest: Notification | null };
 
 const SCOPE_LABEL: Record<Scope, string> = {
   me: 'My runs',
@@ -28,10 +34,19 @@ const SCOPE_LABEL: Record<Scope, string> = {
 export default function FeedScreen() {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
+  const qc = useQueryClient();
   const [scope, setScope] = useState<Scope>('me');
   const [pickerOpen, setPickerOpen] = useState(false);
   const { data, isLoading, isFetching, isError, refetch } = useFeed(scope);
   const activities = data?.data ?? [];
+  const trainingToday = useTrainingToday();
+  const notifPreview = useNotificationsPreview();
+
+  const onRefreshFeed = useCallback(async () => {
+    await refetch();
+    void qc.invalidateQueries({ queryKey: qk.trainingToday() });
+    void qc.invalidateQueries({ queryKey: qk.notificationsPreview() });
+  }, [refetch, qc]);
 
   return (
     <View style={styles.container}>
@@ -57,6 +72,15 @@ export default function FeedScreen() {
       <FlatList
         data={activities}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          <FeedHomeStrip
+            styles={styles}
+            training={trainingToday.data}
+            trainingLoading={trainingToday.isLoading}
+            preview={notifPreview.data}
+            previewLoading={notifPreview.isLoading}
+          />
+        }
         renderItem={({ item }) => (
           <ActivityCard
             activity={item}
@@ -69,7 +93,7 @@ export default function FeedScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isFetching && !isLoading}
-            onRefresh={refetch}
+            onRefresh={() => void onRefreshFeed()}
             tintColor={tokens.accentBlue}
           />
         }
@@ -112,6 +136,73 @@ export default function FeedScreen() {
         styles={styles}
         tokens={tokens}
       />
+    </View>
+  );
+}
+
+function FeedHomeStrip({
+  styles,
+  training,
+  trainingLoading,
+  preview,
+  previewLoading,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+  training: TrainingToday | undefined;
+  trainingLoading: boolean;
+  preview: NotifPreview | undefined;
+  previewLoading: boolean;
+}) {
+  const unread = preview?.unread_count ?? 0;
+  const teaser = preview?.latest?.title ?? '';
+
+  return (
+    <View style={styles.stripWrap}>
+      <Pressable
+        style={({ pressed }) => [styles.stripCard, pressed && { opacity: 0.92 }]}
+        onPress={() => router.push('/(tabs)/ai')}
+      >
+        <Text style={styles.stripLabel}>Today</Text>
+        {trainingLoading ? (
+          <Text style={styles.stripMuted}>Loading plan…</Text>
+        ) : (
+          <>
+            <Text style={styles.stripHeadline} numberOfLines={2}>
+              {training?.headline ?? 'Your training plan'}
+            </Text>
+            <Text style={styles.stripSub} numberOfLines={2}>
+              {training?.primary_session ?? 'Set a goal in AI Coach for tailored guidance.'}
+            </Text>
+          </>
+        )}
+        <Text style={styles.stripDisclaimer}>
+          Suggestions only—not medical advice.
+        </Text>
+      </Pressable>
+
+      <Pressable
+        style={({ pressed }) => [styles.stripCard, pressed && { opacity: 0.92 }]}
+        onPress={() => router.push('/(tabs)/notifications')}
+      >
+        <View style={styles.stripRowBetween}>
+          <Text style={styles.stripLabel}>Notifications</Text>
+          {unread > 0 ? (
+            <View style={styles.stripBadge}>
+              <Text style={styles.stripBadgeText}>{unread > 99 ? '99+' : unread}</Text>
+            </View>
+          ) : null}
+        </View>
+        {previewLoading ? (
+          <Text style={styles.stripMuted}>Loading…</Text>
+        ) : teaser ? (
+          <Text style={styles.stripTeaser} numberOfLines={2}>
+            {teaser}
+          </Text>
+        ) : (
+          <Text style={styles.stripMuted}>Nothing new—sync a run to see updates.</Text>
+        )}
+        <Text style={styles.stripLink}>See all</Text>
+      </Pressable>
     </View>
   );
 }
@@ -206,5 +297,42 @@ function makeStyles(t: ThemeTokens) {
       paddingVertical: 12,
     },
     sheetLabel: { color: t.text, fontSize: 15 },
+
+    stripWrap: { gap: 10, marginBottom: 14 },
+    stripCard: {
+      borderRadius: 14,
+      padding: 14,
+      backgroundColor: t.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+    },
+    stripRowBetween: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    stripLabel: {
+      color: t.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+    },
+    stripHeadline: { color: t.text, fontSize: 16, fontWeight: '700', marginTop: 4 },
+    stripSub: { color: t.textSecondary, fontSize: 14, marginTop: 6, lineHeight: 19 },
+    stripMuted: { color: t.textMuted, fontSize: 14, marginTop: 4 },
+    stripTeaser: { color: t.text, fontSize: 14, marginTop: 4, lineHeight: 19 },
+    stripDisclaimer: { color: t.textMuted, fontSize: 11, marginTop: 8 },
+    stripLink: { color: t.accentBlue, fontSize: 14, fontWeight: '600', marginTop: 8 },
+    stripBadge: {
+      backgroundColor: t.accentBlue,
+      borderRadius: 10,
+      minWidth: 22,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      alignItems: 'center',
+    },
+    stripBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   });
 }

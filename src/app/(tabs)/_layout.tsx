@@ -28,6 +28,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="activity" options={{ href: null }} />
       <Tabs.Screen name="users" options={{ href: null }} />
       <Tabs.Screen name="ai" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -23,6 +23,7 @@ import {
   Award,
   Pencil,
   Share2,
+  Sparkles,
 } from 'lucide-react-native';
 import {
   useActivity,
@@ -205,6 +206,16 @@ export default function ActivityDetailScreen() {
           </View>
         )}
 
+        {activity.ai_coach_summary?.trim() ? (
+          <View style={styles.coachCard}>
+            <View style={styles.coachHeader}>
+              <Sparkles size={14} color={tokens.accentOrange} />
+              <Text style={styles.coachTitle}>Coach insight</Text>
+            </View>
+            <Text style={styles.coachBody}>{activity.ai_coach_summary.trim()}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.statGrid}>
           <Stat label="Distance" value={formatMiles(activity.distance_miles)} styles={styles} />
           <Stat label="Time" value={formatDuration(activity.moving_time_secs)} styles={styles} />
@@ -371,6 +382,18 @@ function makeStyles(t: ThemeTokens) {
     },
     mapPlaceholder: { alignItems: 'center', justifyContent: 'center' },
     mapPlaceholderText: { color: t.textMuted, fontSize: 13 },
+    coachCard: {
+      marginHorizontal: 20,
+      marginBottom: 16,
+      padding: 14,
+      borderRadius: 12,
+      backgroundColor: t.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.accentOrange,
+    },
+    coachHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    coachTitle: { color: t.text, fontWeight: '700', fontSize: 13 },
+    coachBody: { color: t.textSecondary, fontSize: 14, lineHeight: 20 },
     statGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 16 },
     statBlock: { width: '33%', paddingVertical: 8 },
     statLabel: {

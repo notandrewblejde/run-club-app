@@ -51,6 +51,17 @@ export interface paths {
       };
     };
   };
+  '/v1/activities/{activityId}/coach/chat': {
+    post: {
+      parameters: { path: { activityId: string } };
+      requestBody: {
+        content: { 'application/json': { message: string } };
+      };
+      responses: {
+        200: { content: { 'application/json': { reply: string } } };
+      };
+    };
+  };
   '/v1/activities/{activityId}/kudos': {
     get: {
       parameters: { path: { activityId: string } };
@@ -412,6 +423,98 @@ export interface paths {
       responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Activity']> } } };
     };
   };
+  '/v1/me/training-goal': {
+    get: {
+      responses: {
+        200: {
+          content: {
+            'application/json': components['schemas']['TrainingGoalResponse'];
+          };
+        };
+      };
+    };
+    put: {
+      requestBody: {
+        content: { 'application/json': { goal_text?: string } };
+      };
+      responses: {
+        200: {
+          content: {
+            'application/json': components['schemas']['TrainingGoalResponse'];
+          };
+        };
+      };
+    };
+  };
+  '/v1/me/training-goal/feedback': {
+    get: {
+      parameters: { query?: { page?: number; limit?: number } };
+      responses: {
+        200: {
+          content: {
+            'application/json': ApiList<components['schemas']['GoalFeedbackMessage']>;
+          };
+        };
+      };
+    };
+    post: {
+      requestBody: {
+        content: { 'application/json': { message: string } };
+      };
+      responses: {
+        200: { content: { 'application/json': { reply: string } } };
+      };
+    };
+    delete: {
+      responses: {
+        200: { content: { 'application/json': { deleted: number } } };
+      };
+    };
+  };
+  '/v1/me/training-today': {
+    get: {
+      responses: {
+        200: { content: { 'application/json': components['schemas']['TrainingToday'] } };
+      };
+    };
+  };
+  '/v1/notifications': {
+    get: {
+      parameters: { query?: { page?: number; limit?: number } };
+      responses: {
+        200: { content: { 'application/json': ApiList<components['schemas']['Notification']> } };
+      };
+    };
+  };
+  '/v1/notifications/preview': {
+    get: {
+      responses: {
+        200: {
+          content: {
+            'application/json': {
+              unread_count: number;
+              latest: components['schemas']['Notification'] | null;
+            };
+          };
+        };
+      };
+    };
+  };
+  '/v1/notifications/read-all': {
+    post: {
+      responses: {
+        200: { content: { 'application/json': { updated: number } } };
+      };
+    };
+  };
+  '/v1/notifications/{id}/read': {
+    patch: {
+      parameters: { path: { id: string } };
+      responses: {
+        200: { content: { 'application/json': components['schemas']['Notification'] } };
+      };
+    };
+  };
   '/v1/strava/auth': {
     get: { responses: { 200: { content: { 'application/json': { authorization_url: string } } } } };
   };
@@ -498,6 +601,8 @@ export interface components {
       kudos_count: number;
       comment_count: number;
       personal_record: boolean;
+      /** Coach blurb from telemetry; set after Strava import when AI is configured. */
+      ai_coach_summary?: string | null;
       kudoed_by_viewer?: boolean;
       owned_by_viewer?: boolean;
       created?: number;
@@ -595,5 +700,42 @@ export interface components {
       [key: string]: unknown;
     };
     ApiError: { error: { type: string; code?: string; message?: string } };
+    TrainingGoalResponse: {
+      goal_text: string;
+      interpretation_json?: string | null;
+      interpretation?: Record<string, unknown> | null;
+      interpretation_updated_at?: string | null;
+      daily_plan?: {
+        plan_date: string;
+        headline: string;
+        generated_at: string;
+        body: Record<string, unknown>;
+      } | null;
+    };
+    TrainingToday: {
+      headline: string;
+      bullets: string[];
+      progress_hint?: string;
+      primary_session?: string;
+      rationale?: string;
+      plan_date?: string;
+      generated_at?: string;
+    };
+    Notification: {
+      id: string;
+      type: string;
+      title: string;
+      body: string;
+      payload_json?: string | null;
+      related_activity_id?: string | null;
+      read_at?: string | null;
+      created_at: string;
+    };
+    GoalFeedbackMessage: {
+      id: string;
+      role: 'user' | 'assistant';
+      content: string;
+      created_at: string;
+    };
   };
 }
