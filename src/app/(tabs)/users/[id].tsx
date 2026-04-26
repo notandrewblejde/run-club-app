@@ -178,7 +178,9 @@ export default function UserProfileScreen() {
           <ActivityCard
             key={a.id}
             activity={a}
-            onPress={() => router.push(`/(tabs)/activity/${a.id}`)}
+            onPress={() =>
+              router.push(`/(tabs)/activity/${a.id}?from=profile&profileId=${encodeURIComponent(id)}`)
+            }
           />
         ))
       )}

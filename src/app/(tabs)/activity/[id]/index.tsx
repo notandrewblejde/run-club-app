@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -46,7 +46,20 @@ import type { ThemeTokens } from '@/theme/tokens';
 export default function ActivityDetailScreen() {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from, profileId } = useLocalSearchParams<{
+    id: string;
+    from?: string;
+    profileId?: string;
+  }>();
+
+  /** `router.back()` can bubble past this stack and restore the wrong tab (e.g. discover). */
+  const closeActivityDetail = useCallback(() => {
+    if (from === 'profile' && profileId) {
+      router.replace(`/(tabs)/users/${profileId}`);
+      return;
+    }
+    router.replace('/(tabs)/feed');
+  }, [from, profileId]);
   const activityQ = useActivity(id);
   const commentsQ = useComments(id);
   const myClubsQ = useMyClubs();
@@ -140,7 +153,7 @@ export default function ActivityDetailScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 160 }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+          <TouchableOpacity onPress={closeActivityDetail} hitSlop={12}>
             <ArrowLeft size={22} color={tokens.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
