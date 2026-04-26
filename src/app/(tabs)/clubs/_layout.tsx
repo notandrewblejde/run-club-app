@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { nativeStackBackGestureOptions } from '@/navigation/stackScreenOptions';
 
 /**
  * Stack for the Clubs tab. See profile/_layout.tsx for rationale — putting
@@ -7,7 +8,7 @@ import { Stack } from 'expo-router';
  */
 export default function ClubsStackLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, ...nativeStackBackGestureOptions }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="new" />
       <Stack.Screen name="[id]/index" />

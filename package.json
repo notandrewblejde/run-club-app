@@ -7,7 +7,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "gen:api": "openapi-typescript ${API_URL:-http://localhost:8080}/v3/api-docs -o src/api/schema.d.ts"
+    "gen:api": "openapi-typescript ${API_URL:-http://localhost:8080}/v3/api-docs -o src/api/schema.d.ts",
+    "eas:build:ios": "eas build --platform ios --profile production",
+    "eas:submit:ios": "eas submit --platform ios --profile production --latest"
   },
   "dependencies": {
     "@mapbox/polyline": "^1.2.1",
@@ -42,6 +44,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
+    "eas-cli": "^16.28.0",
     "openapi-typescript": "^7.13.0",
     "typescript": "~5.3.3"
   }

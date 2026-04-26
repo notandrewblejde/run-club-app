@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
+import { nativeStackBackGestureOptions } from '@/navigation/stackScreenOptions';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/api/queryClient';
@@ -37,6 +38,7 @@ function ThemedShell() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: tokens.background },
+          ...nativeStackBackGestureOptions,
         }}
       >
         <Stack.Screen name="index" />

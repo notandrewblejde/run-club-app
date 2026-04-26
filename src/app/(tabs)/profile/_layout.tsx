@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { nativeStackBackGestureOptions } from '@/navigation/stackScreenOptions';
 
 /**
  * Stack for the Profile tab. Wrapping the children in a Stack (instead of
@@ -8,7 +9,7 @@ import { Stack } from 'expo-router';
  */
 export default function ProfileStackLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, ...nativeStackBackGestureOptions }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="edit" />
       <Stack.Screen name="requests" />

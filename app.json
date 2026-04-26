@@ -15,11 +15,9 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.runclub",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Run Club needs access to your photo library so you can choose a profile picture.",
-        "NSCameraUsageDescription": "Run Club uses the camera if you choose to take a new profile photo.",
         "LSApplicationQueriesSchemes": [
           "strava"
         ]
@@ -31,14 +29,20 @@
         "backgroundColor": "#0F0F0F"
       },
       "package": "app.runclub",
-      "versionCode": 1
+      "versionCode": 4
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-asset",
       "expo-font",
-      "expo-image-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Run Club needs access to your photo library to set your profile picture, add photos to club posts, and attach images to your activities.",
+          "cameraPermission": "Run Club uses the camera when you choose to take a new profile photo."
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "extra": {
