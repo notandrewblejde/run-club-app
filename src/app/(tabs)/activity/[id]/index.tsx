@@ -9,14 +9,27 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Modal,
+  FlatList,
+  Pressable,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Heart, MessageCircle, Send, Trash2, Award } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Heart,
+  MessageCircle,
+  Send,
+  Trash2,
+  Award,
+  Pencil,
+  Share2,
+} from 'lucide-react-native';
 import {
   useActivity,
   useAddComment,
   useComments,
   useDeleteComment,
+  useMyClubs,
   useToggleKudo,
 } from '@/api/hooks';
 import { generateStaticMapUrl } from '@/utils/mapbox';
@@ -36,11 +49,13 @@ export default function ActivityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const activityQ = useActivity(id);
   const commentsQ = useComments(id);
+  const myClubsQ = useMyClubs();
   const toggleKudo = useToggleKudo(id ?? '');
   const addComment = useAddComment(id ?? '');
   const deleteComment = useDeleteComment(id ?? '');
 
   const [draft, setDraft] = useState('');
+  const [shareOpen, setShareOpen] = useState(false);
 
   if (!id) return null;
   const activity = activityQ.data;
@@ -65,6 +80,10 @@ export default function ActivityDetailScreen() {
     pathColor: tokens.mapPathColor,
   });
   const comments = commentsQ.data?.data ?? [];
+  const clubs = myClubsQ.data?.data ?? [];
+  const stravaPhotos = activity.photos ?? [];
+  const appPhotos = activity.app_photos ?? [];
+  const allGallery = [...stravaPhotos, ...appPhotos];
 
   const handlePost = async () => {
     if (!draft.trim()) return;
@@ -76,8 +95,49 @@ export default function ActivityDetailScreen() {
     }
   };
 
+  const openShare = () => {
+    if (!clubs.length) {
+      Alert.alert('No clubs yet', 'Join a club from the Clubs tab to share your run there.');
+      return;
+    }
+    setShareOpen(true);
+  };
+
+  const pickClubForShare = (clubId: string) => {
+    setShareOpen(false);
+    router.push({
+      pathname: '/(tabs)/clubs/[id]/posts/new',
+      params: { id: clubId, activityId: activity.id },
+    });
+  };
+
   return (
     <View style={styles.container}>
+      <Modal visible={shareOpen} animationType="slide" transparent>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShareOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Share to a club</Text>
+            <Text style={styles.modalHint}>Pick a club. Your post will link to this activity.</Text>
+            <FlatList
+              data={clubs}
+              keyExtractor={(c) => c.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.clubRow}
+                  onPress={() => pickClubForShare(item.id)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.clubName}>{item.name}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setShareOpen(false)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <ScrollView contentContainerStyle={{ paddingBottom: 160 }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
@@ -86,7 +146,24 @@ export default function ActivityDetailScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {activity.user?.name || 'Run'}
           </Text>
-          <View style={{ width: 22 }} />
+          <View style={styles.headerActions}>
+            {activity.owned_by_viewer ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => router.push(`/(tabs)/activity/${id}/edit`)}
+                  hitSlop={12}
+                  style={styles.headerIconBtn}
+                >
+                  <Pencil size={20} color={tokens.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={openShare} hitSlop={12} style={styles.headerIconBtn}>
+                  <Share2 size={20} color={tokens.textSecondary} />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={{ width: 22 }} />
+            )}
+          </View>
         </View>
 
         <Text style={styles.activityName}>{activity.name}</Text>
@@ -101,6 +178,10 @@ export default function ActivityDetailScreen() {
             <Award size={14} color="#0F0F0F" />
             <Text style={styles.prText}>Personal record</Text>
           </View>
+        ) : null}
+
+        {activity.user_note ? (
+          <Text style={styles.userNote}>{activity.user_note}</Text>
         ) : null}
 
         {mapUrl ? (
@@ -132,13 +213,13 @@ export default function ActivityDetailScreen() {
           />
         </View>
 
-        {activity.photos && activity.photos.length ? (
+        {allGallery.length ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.photoStrip}
           >
-            {activity.photos.map((url) => (
+            {allGallery.map((url) => (
               <Image key={url} source={{ uri: url }} style={styles.photo} />
             ))}
           </ScrollView>
@@ -238,13 +319,22 @@ function makeStyles(t: ThemeTokens) {
       paddingTop: 60,
       paddingBottom: 16,
     },
-    headerTitle: { color: t.text, fontWeight: '600', fontSize: 16 },
+    headerTitle: { color: t.text, fontWeight: '600', fontSize: 16, flex: 1, textAlign: 'center' },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 72, justifyContent: 'flex-end' },
+    headerIconBtn: { padding: 4 },
     activityName: { color: t.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 20 },
     timestamp: {
       color: t.textMuted,
       fontSize: 13,
       paddingHorizontal: 20,
       marginTop: 4,
+      marginBottom: 12,
+    },
+    userNote: {
+      color: t.textSecondary,
+      fontSize: 15,
+      lineHeight: 22,
+      paddingHorizontal: 20,
       marginBottom: 12,
     },
     prBadge: {
@@ -348,5 +438,29 @@ function makeStyles(t: ThemeTokens) {
       justifyContent: 'center',
     },
     sendBtnDisabled: { opacity: 0.4 },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      backgroundColor: t.background,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingHorizontal: 20,
+      paddingTop: 20,
+      paddingBottom: 36,
+      maxHeight: '55%',
+    },
+    modalTitle: { color: t.text, fontSize: 18, fontWeight: '700' },
+    modalHint: { color: t.textMuted, fontSize: 13, marginTop: 6, marginBottom: 12 },
+    clubRow: {
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.border,
+    },
+    clubName: { color: t.text, fontSize: 16, fontWeight: '600' },
+    modalCancel: { marginTop: 16, alignItems: 'center', paddingVertical: 12 },
+    modalCancelText: { color: t.textSecondary, fontSize: 15 },
   });
 }

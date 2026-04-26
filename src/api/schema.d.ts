@@ -15,6 +15,33 @@ export interface paths {
       parameters: { path: { activityId: string } };
       responses: { 200: { content: { 'application/json': components['schemas']['Activity'] } } };
     };
+    patch: {
+      parameters: { path: { activityId: string } };
+      requestBody: {
+        content: {
+          'application/json': { user_note?: string; app_photos?: string[] };
+        };
+      };
+      responses: { 200: { content: { 'application/json': components['schemas']['Activity'] } } };
+    };
+  };
+  '/v1/activities/{activityId}/photos/presign': {
+    post: {
+      parameters: { path: { activityId: string } };
+      requestBody: { content: { 'application/json': { content_type?: string } } };
+      responses: {
+        200: {
+          content: {
+            'application/json': {
+              upload_url: string;
+              public_url: string;
+              method: string;
+              content_type: string;
+            };
+          };
+        };
+      };
+    };
   };
   '/v1/activities/{activityId}/summary': {
     get: {
@@ -82,6 +109,19 @@ export interface paths {
       parameters: { path: { clubId: string } };
       responses: { 200: { content: { 'application/json': components['schemas']['Club'] } } };
     };
+    patch: {
+      parameters: { path: { clubId: string } };
+      requestBody: {
+        content: {
+          'application/json': {
+            name?: string;
+            description?: string;
+            privacy_level?: 'public' | 'private';
+          };
+        };
+      };
+      responses: { 200: { content: { 'application/json': components['schemas']['Club'] } } };
+    };
   };
   '/v1/clubs/{clubId}/leaderboard': {
     get: {
@@ -147,8 +187,45 @@ export interface paths {
   '/v1/clubs/{clubId}/posts': {
     post: {
       parameters: { path: { clubId: string } };
-      requestBody: { content: { 'application/json': { content: string; photos?: string[] } } };
+      requestBody: {
+        content: {
+          'application/json': { content: string; photos?: string[]; related_activity_id?: string };
+        };
+      };
       responses: { 201: { content: { 'application/json': components['schemas']['Post'] } } };
+    };
+  };
+  '/v1/clubs/{clubId}/posts/{postId}': {
+    get: {
+      parameters: { path: { clubId: string; postId: string } };
+      responses: { 200: { content: { 'application/json': components['schemas']['Post'] } } };
+    };
+    patch: {
+      parameters: { path: { clubId: string; postId: string } };
+      requestBody: { content: { 'application/json': { content?: string; photos?: string[] } } };
+      responses: { 200: { content: { 'application/json': components['schemas']['Post'] } } };
+    };
+    delete: {
+      parameters: { path: { clubId: string; postId: string } };
+      responses: { 204: never };
+    };
+  };
+  '/v1/clubs/{clubId}/posts/presign': {
+    post: {
+      parameters: { path: { clubId: string } };
+      requestBody: { content: { 'application/json': { content_type?: string } } };
+      responses: {
+        200: {
+          content: {
+            'application/json': {
+              upload_url: string;
+              public_url: string;
+              method: string;
+              content_type: string;
+            };
+          };
+        };
+      };
     };
   };
   '/v1/clubs/{clubId}/goals': {
@@ -416,6 +493,8 @@ export interface components {
       max_heart_rate_bpm?: number;
       map_polyline?: string;
       photos?: string[];
+      user_note?: string;
+      app_photos?: string[];
       kudos_count: number;
       comment_count: number;
       personal_record: boolean;
@@ -503,6 +582,7 @@ export interface components {
       author?: components['schemas']['User'];
       content: string;
       photos?: string[];
+      related_activity_id?: string;
       created?: number;
     };
     /**

@@ -35,6 +35,7 @@ export const qk = {
   myClubs: () => ['clubs', 'mine'] as const,
   publicClubs: () => ['clubs', 'public'] as const,
   club: (clubId: string) => ['club', clubId] as const,
+  clubPost: (clubId: string, postId: string) => ['club', clubId, 'post', postId] as const,
   clubMembers: (clubId: string) => ['club', clubId, 'members'] as const,
   clubGoals: (clubId: string, activeOnly: boolean) =>
     ['club', clubId, 'goals', activeOnly ? 'active' : 'all'] as const,

@@ -7,6 +7,7 @@ type Comment = components['schemas']['Comment'];
 type Kudo = components['schemas']['Kudo'];
 type Club = components['schemas']['Club'];
 type ClubMembership = components['schemas']['ClubMembership'];
+type Post = components['schemas']['Post'];
 type Goal = components['schemas']['Goal'];
 type GoalProgress = components['schemas']['GoalProgress'];
 type LeaderboardEntry = components['schemas']['LeaderboardEntry'];
@@ -28,10 +29,10 @@ export function useFeed(scope: 'me' | 'following') {
   });
 }
 
-export function useActivity(id: string | undefined) {
+export function useActivity(id: string | undefined, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: qk.activity(id ?? ''),
-    enabled: !!id,
+    enabled: !!id && opts?.enabled !== false,
     queryFn: async () =>
       unwrap(api.GET('/v1/activities/{activityId}', { params: { path: { activityId: id! } } })),
   });
@@ -45,6 +46,48 @@ export function useActivitySummary(id: string | undefined, opts?: { enabled?: bo
       unwrap(
         api.GET('/v1/activities/{activityId}/summary', { params: { path: { activityId: id! } } }),
       ),
+  });
+}
+
+export function useUpdateActivity(activityId: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    Activity,
+    Error,
+    { user_note?: string; app_photos?: string[] }
+  >({
+    mutationFn: (body) =>
+      unwrap(
+        api.PATCH('/v1/activities/{activityId}', {
+          params: { path: { activityId } },
+          body,
+        }),
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(qk.activity(activityId), data);
+      void qc.invalidateQueries({ queryKey: qk.activities('me') });
+    },
+  });
+}
+
+export function usePresignActivityPhoto(activityId: string) {
+  return useMutation<
+    { upload_url: string; public_url: string; method: string; content_type: string },
+    Error,
+    string
+  >({
+    mutationFn: (contentType) =>
+      unwrap(
+        api.POST('/v1/activities/{activityId}/photos/presign', {
+          params: { path: { activityId } },
+          body: { content_type: contentType },
+        }),
+      ) as Promise<{
+        upload_url: string;
+        public_url: string;
+        method: string;
+        content_type: string;
+      }>,
   });
 }
 
@@ -163,6 +206,119 @@ export function useClubMembers(clubId: string | undefined) {
           params: { path: { clubId: clubId! }, query: { page: 1, limit: 100 } },
         }),
       ),
+  });
+}
+
+export function useClubPost(clubId: string, postId: string | undefined) {
+  return useQuery({
+    queryKey: qk.clubPost(clubId, postId ?? ''),
+    enabled: !!postId,
+    queryFn: async () =>
+      unwrap(
+        api.GET('/v1/clubs/{clubId}/posts/{postId}', {
+          params: { path: { clubId, postId: postId! } },
+        }),
+      ),
+  });
+}
+
+export function useCreatePost(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    Post,
+    Error,
+    { content: string; photos?: string[]; related_activity_id?: string }
+  >({
+    mutationFn: (body) =>
+      unwrap(
+        api.POST('/v1/clubs/{clubId}/posts', {
+          params: { path: { clubId } },
+          body,
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.clubFeed(clubId) });
+    },
+  });
+}
+
+export function useUpdatePost(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<Post, Error, { postId: string; body: { content?: string; photos?: string[] } }>({
+    mutationFn: ({ postId, body }) =>
+      unwrap(
+        api.PATCH('/v1/clubs/{clubId}/posts/{postId}', {
+          params: { path: { clubId, postId } },
+          body,
+        }),
+      ),
+    onSuccess: (_post, vars) => {
+      void qc.invalidateQueries({ queryKey: qk.clubFeed(clubId) });
+      void qc.invalidateQueries({ queryKey: qk.clubPost(clubId, vars.postId) });
+    },
+  });
+}
+
+export function useDeletePost(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (postId) =>
+      unwrapNoContent(
+        api.DELETE('/v1/clubs/{clubId}/posts/{postId}', {
+          params: { path: { clubId, postId } },
+        }),
+      ),
+    onSuccess: (_void, postId) => {
+      void qc.invalidateQueries({ queryKey: qk.clubFeed(clubId) });
+      void qc.removeQueries({ queryKey: qk.clubPost(clubId, postId) });
+    },
+  });
+}
+
+export function usePresignPostPhoto(clubId: string) {
+  return useMutation<
+    { upload_url: string; public_url: string; method: string; content_type: string },
+    Error,
+    string
+  >({
+    mutationFn: (contentType) =>
+      unwrap(
+        api.POST('/v1/clubs/{clubId}/posts/presign', {
+          params: { path: { clubId } },
+          body: { content_type: contentType },
+        }),
+      ) as Promise<{
+        upload_url: string;
+        public_url: string;
+        method: string;
+        content_type: string;
+      }>,
+  });
+}
+
+export function useUpdateClub(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    Club,
+    Error,
+    Partial<{
+      name: string;
+      description: string;
+      privacy_level: 'public' | 'private';
+    }>
+  >({
+    mutationFn: (body) =>
+      unwrap(
+        api.PATCH('/v1/clubs/{clubId}', {
+          params: { path: { clubId } },
+          body,
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.club(clubId) });
+      void qc.invalidateQueries({ queryKey: qk.myClubs() });
+      void qc.invalidateQueries({ queryKey: qk.publicClubs() });
+    },
   });
 }
 

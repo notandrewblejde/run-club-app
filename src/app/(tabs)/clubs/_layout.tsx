@@ -11,6 +11,9 @@ export default function ClubsStackLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="new" />
       <Stack.Screen name="[id]/index" />
+      <Stack.Screen name="[id]/edit" />
+      <Stack.Screen name="[id]/posts/new" />
+      <Stack.Screen name="[id]/posts/[postId]/edit" />
       <Stack.Screen name="[id]/members" />
       <Stack.Screen name="[id]/invite" />
       <Stack.Screen name="[id]/goals/new" />

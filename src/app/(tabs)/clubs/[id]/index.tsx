@@ -21,11 +21,15 @@ import {
   useDeleteGoal,
   useGoalLeaderboard,
   useGoalProgress,
+  useMe,
   type ClubLeaderboardQuery,
 } from '@/api/hooks';
 import { formatRelativeFromUnix } from '@/utils/format';
 import { formatMiles } from '@/utils/format';
-import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
+import {
+  useBottomBarActions,
+  type BottomBarAction,
+} from '@/components/nav/BottomBarActionsContext';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 import type { components } from '@/api/schema';
@@ -46,6 +50,7 @@ export default function ClubDetailScreen() {
   const [lbGoalId, setLbGoalId] = useState<string | undefined>(undefined);
 
   const feedQ = useClubFeed(id);
+  const meQ = useMe();
   const allGoalsQ = useClubGoals(id, false);
   const club = clubQ.data;
   const members = membersQ.data?.data ?? [];
@@ -53,6 +58,7 @@ export default function ClubDetailScreen() {
   const allGoals = allGoalsQ.data?.data ?? [];
   const recentFeed = (feedQ.data?.feed ?? []).slice(0, 20);
   const canManage = club?.viewer_role === 'owner' || club?.viewer_role === 'admin';
+  const myUserId = meQ.data?.id;
 
   const lbSpec = useMemo((): ClubLeaderboardQuery | null => {
     if (lbMode === '30d') return { window: '30d' };
@@ -80,18 +86,33 @@ export default function ClubDetailScreen() {
   };
 
   useEffect(() => {
-    if (canManage && id) {
-      setActions([
+    if (!id || !club?.viewer_role) {
+      clearActions();
+      return () => clearActions();
+    }
+    const next: BottomBarAction[] = [
+      {
+        label: 'New post',
+        variant: 'outlined',
+        onPress: () => router.push(`/(tabs)/clubs/${id}/posts/new`),
+      },
+    ];
+    if (canManage) {
+      next.push(
+        {
+          label: 'Edit club',
+          variant: 'outlined',
+          onPress: () => router.push(`/(tabs)/clubs/${id}/edit`),
+        },
         {
           label: 'Add goal',
           onPress: () => router.push(`/(tabs)/clubs/${id}/goals/new`),
         },
-      ]);
-    } else {
-      clearActions();
+      );
     }
+    setActions(next);
     return () => clearActions();
-  }, [canManage, id, setActions, clearActions]);
+  }, [canManage, id, club?.viewer_role, setActions, clearActions]);
 
   if (!id) return null;
 
@@ -171,11 +192,27 @@ export default function ClubDetailScreen() {
                     type === 'post'
                       ? String(item.content ?? '')
                       : `${authorName} logged ${item.name ?? 'a run'}`;
+                  const authorId = String(item.author_id ?? item.athlete_id ?? '');
+                  const isEditablePost = type === 'post' && !!authorId && authorId === myUserId;
                   return (
                     <View key={`${type}-${feedItemId}`} style={styles.feedRow}>
                       <View style={styles.feedDot} />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.feedAuthor}>{authorName}</Text>
+                        <View style={styles.feedTopRow}>
+                          <Text style={styles.feedAuthor}>{authorName}</Text>
+                          {isEditablePost ? (
+                            <TouchableOpacity
+                              onPress={() =>
+                                router.push(`/(tabs)/clubs/${id}/posts/${feedItemId}/edit`)
+                              }
+                              hitSlop={8}
+                            >
+                              <Text style={[styles.feedEditLabel, { color: tokens.accentBlue }]}>
+                                Edit
+                              </Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
                         <Text style={styles.feedSummary} numberOfLines={2}>
                           {summary}
                         </Text>
@@ -203,8 +240,9 @@ export default function ClubDetailScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.leaderboardScreenTitle}>Leaderboard</Text>
                   <Text style={styles.leaderboardHint}>
-                    Top 10 by distance. 30d and All time use runs from Strava; All time
-                    counts from when each person joined. Goal uses challenge credits only.
+                    Top 10 by miles. 30 days = runs in the last 30 days. All time = runs
+                    since each person joined this club. Goal = miles counted for the
+                    selected goal.
                   </Text>
                 </View>
               </View>
@@ -689,7 +727,9 @@ function makeStyles(t: ThemeTokens) {
       backgroundColor: t.accentBlue,
       marginTop: 7,
     },
+    feedTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     feedAuthor: { color: t.text, fontWeight: '600', fontSize: 13 },
+    feedEditLabel: { fontSize: 12, fontWeight: '600' },
     feedSummary: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
     feedTimestamp: { color: t.textMuted, fontSize: 11, marginTop: 4 },
   });
