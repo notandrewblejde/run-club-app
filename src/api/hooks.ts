@@ -185,9 +185,10 @@ export function useJoinClub() {
   return useMutation<ClubMembership, Error, string>({
     mutationFn: (clubId) =>
       unwrap(api.POST('/v1/clubs/{clubId}/join', { params: { path: { clubId } } })),
-    onSuccess: () => {
+    onSuccess: (_m, clubId) => {
       void qc.invalidateQueries({ queryKey: qk.myClubs() });
       void qc.invalidateQueries({ queryKey: qk.publicClubs() });
+      void qc.invalidateQueries({ queryKey: ['club', clubId, 'clubLeaderboard'] });
     },
   });
 }
@@ -237,6 +238,7 @@ export function useCreateGoal(clubId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, true) });
       void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, false) });
+      void qc.invalidateQueries({ queryKey: ['club', clubId, 'clubLeaderboard'] });
     },
   });
 }
@@ -268,6 +270,7 @@ export function useUpdateGoal(clubId: string) {
       void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, false) });
       void qc.invalidateQueries({ queryKey: qk.goalProgress(clubId, goalId) });
       void qc.invalidateQueries({ queryKey: qk.goalLeaderboard(clubId, goalId) });
+      void qc.invalidateQueries({ queryKey: ['club', clubId, 'clubLeaderboard'] });
     },
   });
 }
@@ -286,6 +289,7 @@ export function useDeleteGoal(clubId: string) {
       void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, false) });
       void qc.removeQueries({ queryKey: qk.goalProgress(clubId, goalId) });
       void qc.removeQueries({ queryKey: qk.goalLeaderboard(clubId, goalId) });
+      void qc.invalidateQueries({ queryKey: ['club', clubId, 'clubLeaderboard'] });
     },
   });
 }
@@ -300,6 +304,40 @@ export function useGoalLeaderboard(clubId: string, goalId: string | undefined) {
           params: { path: { clubId, goalId: goalId! } },
         }),
       ),
+  });
+}
+
+export type ClubLeaderboardQuery =
+  | { window: '30d' | 'all' }
+  | { goalId: string };
+
+export function useClubLeaderboard(
+  clubId: string | undefined,
+  spec: ClubLeaderboardQuery | null,
+  opts?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: spec ? qk.clubLeaderboard(clubId ?? '', spec) : ['club', 'leaderboard', 'off'],
+    enabled:
+      (opts?.enabled !== false) &&
+      !!clubId &&
+      spec != null &&
+      ('window' in spec ? true : (spec as { goalId: string }).goalId.length > 0),
+    queryFn: async () => {
+      if (spec == null) throw new Error('No leaderboard spec');
+      if ('goalId' in spec) {
+        return unwrap(
+          api.GET('/v1/clubs/{clubId}/leaderboard', {
+            params: { path: { clubId: clubId! }, query: { goalId: spec.goalId, limit: 10 } },
+          }),
+        );
+      }
+      return unwrap(
+        api.GET('/v1/clubs/{clubId}/leaderboard', {
+          params: { path: { clubId: clubId! }, query: { window: spec.window, limit: 10 } },
+        }),
+      );
+    },
   });
 }
 

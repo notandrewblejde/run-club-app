@@ -17,9 +17,11 @@ import {
   useClubFeed,
   useClubGoals,
   useClubMembers,
+  useClubLeaderboard,
   useDeleteGoal,
   useGoalLeaderboard,
   useGoalProgress,
+  type ClubLeaderboardQuery,
 } from '@/api/hooks';
 import { formatRelativeFromUnix } from '@/utils/format';
 import { formatMiles } from '@/utils/format';
@@ -40,19 +42,41 @@ export default function ClubDetailScreen() {
   const goalsQ = useClubGoals(id, true);
   const { setActions, clearActions } = useBottomBarActions();
   const [homeTab, setHomeTab] = useState<ClubHomeTab>('activity');
+  const [lbMode, setLbMode] = useState<'30d' | 'all' | 'goal'>('30d');
+  const [lbGoalId, setLbGoalId] = useState<string | undefined>(undefined);
 
   const feedQ = useClubFeed(id);
+  const allGoalsQ = useClubGoals(id, false);
   const club = clubQ.data;
   const members = membersQ.data?.data ?? [];
   const goals = goalsQ.data?.data ?? [];
+  const allGoals = allGoalsQ.data?.data ?? [];
   const recentFeed = (feedQ.data?.feed ?? []).slice(0, 20);
   const canManage = club?.viewer_role === 'owner' || club?.viewer_role === 'admin';
+
+  const lbSpec = useMemo((): ClubLeaderboardQuery | null => {
+    if (lbMode === '30d') return { window: '30d' };
+    if (lbMode === 'all') return { window: 'all' };
+    if (lbMode === 'goal' && lbGoalId) return { goalId: lbGoalId };
+    return null;
+  }, [lbMode, lbGoalId]);
+
+  const clubLbQ = useClubLeaderboard(id, homeTab === 'leaderboard' ? lbSpec : null, {
+    enabled: homeTab === 'leaderboard' && !!lbSpec,
+  });
+
+  useEffect(() => {
+    if (lbMode !== 'goal' || allGoals.length === 0) return;
+    setLbGoalId((prev) => (prev && allGoals.some((g) => g.id === prev) ? prev : allGoals[0].id));
+  }, [lbMode, allGoals]);
 
   const refetch = () => {
     void clubQ.refetch();
     void membersQ.refetch();
     void goalsQ.refetch();
+    void allGoalsQ.refetch();
     void feedQ.refetch();
+    void clubLbQ.refetch();
   };
 
   useEffect(() => {
@@ -174,17 +198,111 @@ export default function ClubDetailScreen() {
 
           {homeTab === 'leaderboard' ? (
             <View style={styles.tabPanel}>
-              {goals.length === 0 ? (
-                <Text style={styles.empty}>No active goals yet — nothing to rank.</Text>
+              <View style={styles.leaderboardHeaderBlock}>
+                <Trophy size={16} color={tokens.accentYellow} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.leaderboardScreenTitle}>Leaderboard</Text>
+                  <Text style={styles.leaderboardHint}>
+                    Top 10 by distance. 30d and All time use runs from Strava; All time
+                    counts from when each person joined. Goal uses challenge credits only.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.lbFilterRow}>
+                {(
+                  [
+                    { key: '30d' as const, label: '30 days' },
+                    { key: 'all' as const, label: 'All time' },
+                    { key: 'goal' as const, label: 'Goal' },
+                  ] as const
+                ).map(({ key, label }) => {
+                  const isOn = lbMode === key;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      onPress={() => {
+                        setLbMode(key);
+                        if (key === 'goal' && allGoals[0] && !lbGoalId) {
+                          setLbGoalId(allGoals[0].id);
+                        }
+                      }}
+                      style={[
+                        styles.pill,
+                        { borderColor: tokens.navPillBorder, backgroundColor: tokens.navPill },
+                        isOn && {
+                          backgroundColor: tokens.accentBlue,
+                          borderColor: tokens.accentBlue,
+                        },
+                      ]}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.pillLabel,
+                          { color: tokens.textSecondary },
+                          isOn && { color: '#fff' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {lbMode === 'goal' && allGoals.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.goalChipRow}
+                >
+                  {allGoals.map((g) => {
+                    const on = g.id === lbGoalId;
+                    return (
+                      <TouchableOpacity
+                        key={g.id}
+                        onPress={() => setLbGoalId(g.id)}
+                        style={[
+                          styles.goalChip,
+                          { borderColor: on ? tokens.accentBlue : tokens.divider },
+                          on && { backgroundColor: tokens.surfaceElevated },
+                        ]}
+                        activeOpacity={0.85}
+                      >
+                        <Text
+                          style={[
+                            styles.goalChipText,
+                            { color: on ? tokens.accentBlue : tokens.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {g.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
+
+              {lbMode === 'goal' && allGoals.length === 0 ? (
+                <Text style={styles.empty}>No goals in this club yet — create one to rank it.</Text>
+              ) : clubLbQ.isLoading ? (
+                <ActivityIndicator color={tokens.accentBlue} style={{ marginTop: 16 }} />
+              ) : (clubLbQ.data?.data?.length ?? 0) === 0 ? (
+                <Text style={styles.empty}>
+                  {lbMode === 'goal' ? 'No contributions for this goal yet.' : 'No distance yet for this view.'}
+                </Text>
               ) : (
-                goals.map((g) => (
-                  <GoalLeaderboardPanel
-                    key={g.id}
-                    clubId={id}
-                    goal={g}
-                    tokens={tokens}
-                    styles={styles}
-                  />
+                (clubLbQ.data?.data ?? []).map((e) => (
+                  <View key={e.user?.id ?? String(e.rank)} style={styles.leaderboardRowMain}>
+                    <Text style={styles.leaderboardRankMain}>{e.rank}.</Text>
+                    <Text style={styles.leaderboardNameMain}>{e.user?.name ?? 'Unnamed'}</Text>
+                    <Text style={styles.leaderboardMilesMain}>
+                      {formatMiles(Number(e.total_distance_miles))}
+                    </Text>
+                  </View>
                 ))
               )}
             </View>
@@ -253,47 +371,6 @@ function ClubHomePills({
           </TouchableOpacity>
         );
       })}
-    </View>
-  );
-}
-
-function GoalLeaderboardPanel({
-  clubId,
-  goal,
-  tokens,
-  styles,
-}: {
-  clubId: string;
-  goal: Goal;
-  tokens: ThemeTokens;
-  styles: ReturnType<typeof makeStyles>;
-}) {
-  const lbQ = useGoalLeaderboard(clubId, goal.id);
-  const top = lbQ.data?.data ?? [];
-
-  return (
-    <View style={styles.lbGoalBlock}>
-      <View style={styles.lbGoalHeader}>
-        <Trophy size={14} color={tokens.accentYellow} />
-        <Text style={styles.lbGoalTitle} numberOfLines={2}>
-          {goal.name}
-        </Text>
-      </View>
-      {lbQ.isLoading ? (
-        <ActivityIndicator color={tokens.accentBlue} style={{ marginVertical: 12 }} />
-      ) : top.length === 0 ? (
-        <Text style={styles.empty}>No contributions yet.</Text>
-      ) : (
-        top.map((e) => (
-          <View key={e.user?.id ?? String(e.rank)} style={styles.leaderboardRow}>
-            <Text style={styles.leaderboardRank}>{e.rank}.</Text>
-            <Text style={styles.leaderboardName}>{e.user?.name ?? 'Unnamed'}</Text>
-            <Text style={styles.leaderboardMiles}>
-              {formatMiles(Number(e.total_distance_miles))}
-            </Text>
-          </View>
-        ))
-      )}
     </View>
   );
 }
@@ -516,16 +593,33 @@ function makeStyles(t: ThemeTokens) {
     },
     pillLabel: { fontSize: 12, fontWeight: '600' },
     tabPanel: { marginBottom: 8 },
-    lbGoalBlock: {
-      backgroundColor: t.surface,
-      borderRadius: 12,
-      padding: 14,
+    leaderboardHeaderBlock: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10 },
+    leaderboardScreenTitle: { color: t.text, fontSize: 15, fontWeight: '600' },
+    leaderboardHint: { color: t.textMuted, fontSize: 11, lineHeight: 15, marginTop: 3 },
+    lbFilterRow: {
+      flexDirection: 'row',
+      gap: 8,
       marginBottom: 12,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.divider,
     },
-    lbGoalHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-    lbGoalTitle: { color: t.text, fontSize: 15, fontWeight: '600', flex: 1 },
+    goalChipRow: { gap: 8, paddingRight: 8, marginBottom: 12 },
+    goalChip: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 20,
+      borderWidth: StyleSheet.hairlineWidth,
+    },
+    goalChipText: { fontSize: 13, fontWeight: '600', maxWidth: 200 },
+    leaderboardRowMain: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: t.divider,
+    },
+    leaderboardRankMain: { color: t.textMuted, fontSize: 14, width: 28, fontWeight: '600' },
+    leaderboardNameMain: { color: t.text, fontSize: 15, flex: 1, fontWeight: '500' },
+    leaderboardMilesMain: { color: t.textSecondary, fontSize: 14 },
     memberHomeRow: {
       flexDirection: 'row',
       alignItems: 'center',

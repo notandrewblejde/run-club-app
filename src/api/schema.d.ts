@@ -83,6 +83,17 @@ export interface paths {
       responses: { 200: { content: { 'application/json': components['schemas']['Club'] } } };
     };
   };
+  '/v1/clubs/{clubId}/leaderboard': {
+    get: {
+      parameters: {
+        path: { clubId: string };
+        query?: { window?: '30d' | 'all'; goalId?: string; limit?: number };
+      };
+      responses: {
+        200: { content: { 'application/json': ApiList<components['schemas']['LeaderboardEntry']> } };
+      };
+    };
+  };
   '/v1/clubs/{clubId}/members': {
     get: {
       parameters: { path: { clubId: string }; query?: { page?: number; limit?: number } };
