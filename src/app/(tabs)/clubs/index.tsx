@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { Plus, Users, Globe, Lock } from 'lucide-react-native';
+import { Plus, Users, Globe, Lock, Search } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useMyClubs } from '@/api/hooks';
 import { useTheme } from '@/theme/ThemeContext';
@@ -34,12 +34,22 @@ export default function ClubsScreen() {
               : `${clubs.length} club${clubs.length === 1 ? '' : 's'}`}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => router.push('/(tabs)/clubs/new')}
-        >
-          <Plus size={20} color={tokens.onPrimary} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => router.push('/(tabs)/discover')}
+            accessibilityLabel="Discover"
+          >
+            <Search size={18} color={tokens.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.createButton}
+            onPress={() => router.push('/(tabs)/clubs/new')}
+            accessibilityLabel="Create club"
+          >
+            <Plus size={20} color={tokens.onPrimary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {isLoading && clubs.length === 0 ? (
@@ -133,6 +143,17 @@ function makeStyles(t: ThemeTokens) {
     },
     title: { fontSize: 28, fontWeight: '700', color: t.text },
     subtitle: { fontSize: 13, color: t.textMuted, marginTop: 4 },
+    headerActions: { flexDirection: 'row', gap: 8 },
+    iconButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: t.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     createButton: {
       width: 36,
       height: 36,

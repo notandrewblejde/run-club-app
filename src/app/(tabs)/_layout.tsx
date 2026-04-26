@@ -19,9 +19,15 @@ export default function TabsLayout() {
       <Tabs.Screen name="challenges/index" options={{ href: null }} />
       <Tabs.Screen name="activity/[id]" options={{ href: null }} />
       <Tabs.Screen name="clubs/[id]/index" options={{ href: null }} />
+      <Tabs.Screen name="clubs/[id]/members" options={{ href: null }} />
+      <Tabs.Screen name="clubs/[id]/invite" options={{ href: null }} />
       <Tabs.Screen name="clubs/[id]/goals/new" options={{ href: null }} />
       <Tabs.Screen name="clubs/new" options={{ href: null }} />
       <Tabs.Screen name="profile/edit" options={{ href: null }} />
+      <Tabs.Screen name="profile/requests" options={{ href: null }} />
+      <Tabs.Screen name="users/[id]" options={{ href: null }} />
+      <Tabs.Screen name="users/[id]/followers" options={{ href: null }} />
+      <Tabs.Screen name="users/[id]/following" options={{ href: null }} />
       <Tabs.Screen name="ai/index" options={{ href: null }} />
     </Tabs>
   );

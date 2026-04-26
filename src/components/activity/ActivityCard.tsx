@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { router } from 'expo-router';
 import { Heart, MessageCircle, Award } from 'lucide-react-native';
 import type { components } from '@/api/schema';
 import { generateStaticMapUrl } from '@/utils/mapbox';
@@ -33,7 +34,14 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <TouchableOpacity
+          style={styles.headerLeft}
+          activeOpacity={0.7}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            if (activity.user?.id) router.push(`/(tabs)/users/${activity.user.id}`);
+          }}
+        >
           {avatar ? (
             <Image source={{ uri: avatar }} style={styles.avatar} />
           ) : (
@@ -45,7 +53,7 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
             <Text style={styles.name}>{userName}</Text>
             <Text style={styles.timestamp}>{formatRelativeFromUnix(activity.start_date)}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
         {activity.personal_record ? (
           <View style={styles.prBadge}>
             <Award size={12} color="#0F0F0F" />

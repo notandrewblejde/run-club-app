@@ -22,9 +22,17 @@ import {
   Moon,
   Smartphone,
   Check,
+  Users,
+  Trophy,
+  ChevronRight,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useDisconnectStrava, useMe, useTriggerStravaSync } from '@/api/hooks';
+import {
+  useDisconnectStrava,
+  useFollowRequests,
+  useMe,
+  useTriggerStravaSync,
+} from '@/api/hooks';
 import { formatDuration, formatMiles } from '@/utils/format';
 import { useTheme, type AppearancePreference } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
@@ -46,6 +54,8 @@ export default function ProfileScreen() {
   const meQ = useMe();
   const sync = useTriggerStravaSync();
   const disconnect = useDisconnectStrava();
+  const requestsQ = useFollowRequests();
+  const pendingCount = requestsQ.data?.data?.length ?? 0;
   const [appearanceOpen, setAppearanceOpen] = useState(false);
 
   if (meQ.isLoading && !meQ.data) {
@@ -129,8 +139,18 @@ export default function ProfileScreen() {
           <Text style={styles.name}>{profile.name ?? 'Unnamed runner'}</Text>
           {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
           <View style={styles.followsRow}>
-            <Counter label="Followers" value={profile.followers_count} styles={styles} />
-            <Counter label="Following" value={profile.following_count} styles={styles} />
+            <TouchableOpacity
+              onPress={() => router.push(`/(tabs)/users/${profile.id}/followers`)}
+              hitSlop={6}
+            >
+              <Counter label="Followers" value={profile.followers_count} styles={styles} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push(`/(tabs)/users/${profile.id}/following`)}
+              hitSlop={6}
+            >
+              <Counter label="Following" value={profile.following_count} styles={styles} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -152,6 +172,33 @@ export default function ProfileScreen() {
             <Stat label="Activities" value={`${profile.stats.activities_30d}`} styles={styles} />
             <Stat label="Distance" value={formatMiles(profile.stats.distance_miles_30d)} styles={styles} />
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Activity</Text>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/(tabs)/profile/requests')}
+            activeOpacity={0.7}
+          >
+            <Users size={16} color={tokens.text} />
+            <Text style={[styles.rowText, { marginLeft: 10 }]}>Follow requests</Text>
+            {pendingCount > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{pendingCount}</Text>
+              </View>
+            ) : null}
+            <ChevronRight size={16} color={tokens.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/(tabs)/challenges')}
+            activeOpacity={0.7}
+          >
+            <Trophy size={16} color={tokens.accentYellow} />
+            <Text style={[styles.rowText, { marginLeft: 10 }]}>Challenges</Text>
+            <ChevronRight size={16} color={tokens.textMuted} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -350,6 +397,16 @@ function makeStyles(t: ThemeTokens) {
     },
     rowText: { color: t.text, fontSize: 14, flex: 1 },
     rowMuted: { color: t.textMuted, fontSize: 12 },
+    badge: {
+      backgroundColor: t.accentOrange,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      minWidth: 22,
+      alignItems: 'center',
+      marginRight: 8,
+    },
+    badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
     logout: {
       marginTop: 32,
       flexDirection: 'row',

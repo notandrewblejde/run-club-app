@@ -6,16 +6,19 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
-import { Users, Target, Trophy } from 'lucide-react-native';
+import { Users, Target, Trophy, Newspaper, ChevronRight } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   useClub,
+  useClubFeed,
   useClubGoals,
   useClubMembers,
   useGoalLeaderboard,
   useGoalProgress,
 } from '@/api/hooks';
+import { formatRelativeFromUnix } from '@/utils/format';
 import { formatMiles } from '@/utils/format';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
 import { useTheme } from '@/theme/ThemeContext';
@@ -33,15 +36,18 @@ export default function ClubDetailScreen() {
   const goalsQ = useClubGoals(id, true);
   const { setActions, clearActions } = useBottomBarActions();
 
+  const feedQ = useClubFeed(id);
   const club = clubQ.data;
   const members = membersQ.data?.data ?? [];
   const goals = goalsQ.data?.data ?? [];
+  const recentFeed = (feedQ.data?.feed ?? []).slice(0, 5);
   const canManage = club?.viewer_role === 'owner' || club?.viewer_role === 'admin';
 
   const refetch = () => {
     void clubQ.refetch();
     void membersQ.refetch();
     void goalsQ.refetch();
+    void feedQ.refetch();
   };
 
   useEffect(() => {
@@ -100,23 +106,77 @@ export default function ClubDetailScreen() {
           </Section>
 
           <Section
+            icon={<Newspaper size={16} color={tokens.accentBlue} />}
+            title="Recent activity"
+            styles={styles}
+          >
+            {recentFeed.length === 0 ? (
+              <Text style={styles.empty}>No activity yet.</Text>
+            ) : (
+              recentFeed.map((item) => {
+                const id = String(item.id ?? '');
+                const type = String(item.type ?? '');
+                const authorName = String(
+                  item.author_name ?? item.athlete_name ?? 'Someone',
+                );
+                const created = item.created_at as string | undefined;
+                const summary =
+                  type === 'post'
+                    ? String(item.content ?? '')
+                    : `${authorName} logged ${item.name ?? 'a run'}`;
+                return (
+                  <View key={`${type}-${id}`} style={styles.feedRow}>
+                    <View style={styles.feedDot} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.feedAuthor}>{authorName}</Text>
+                      <Text style={styles.feedSummary} numberOfLines={2}>
+                        {summary}
+                      </Text>
+                      {created ? (
+                        <Text style={styles.feedTimestamp}>
+                          {formatRelativeFromUnix(
+                            typeof created === 'string'
+                              ? Math.floor(new Date(created).getTime() / 1000)
+                              : created,
+                          )}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </Section>
+
+          <Section
             icon={<Users size={16} color={tokens.accentBlue} />}
             title={`Members (${members.length})`}
             styles={styles}
           >
-            {members.map((m) => (
-              <View key={m.user?.id ?? m.club_id} style={styles.memberRow}>
-                <View style={styles.memberAvatar}>
-                  <Text style={styles.memberInitial}>
-                    {(m.user?.name ?? '?').slice(0, 1).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.memberName}>{m.user?.name ?? 'Unnamed'}</Text>
-                  <Text style={styles.memberRole}>{m.role}</Text>
-                </View>
+            <TouchableOpacity
+              style={styles.membersLink}
+              activeOpacity={0.85}
+              onPress={() => router.push(`/(tabs)/clubs/${id}/members`)}
+            >
+              <View style={styles.memberStack}>
+                {members.slice(0, 4).map((m) => (
+                  <View
+                    key={m.user?.id ?? m.club_id}
+                    style={[styles.memberAvatar, styles.memberAvatarStacked]}
+                  >
+                    <Text style={styles.memberInitial}>
+                      {(m.user?.name ?? '?').slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
+              <Text style={styles.membersLabel}>
+                {members.length > 0
+                  ? `View all ${members.length} member${members.length === 1 ? '' : 's'}`
+                  : 'No members yet'}
+              </Text>
+              <ChevronRight size={16} color={tokens.textMuted} />
+            </TouchableOpacity>
           </Section>
         </ScrollView>
       )}
@@ -247,15 +307,48 @@ function makeStyles(t: ThemeTokens) {
       borderBottomColor: t.divider,
     },
     memberAvatar: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       backgroundColor: t.accentBlue,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    memberInitial: { color: '#fff', fontWeight: '700' },
+    memberAvatarStacked: {
+      borderWidth: 2,
+      borderColor: t.surface,
+      marginLeft: -10,
+    },
+    memberStack: { flexDirection: 'row', paddingLeft: 10 },
+    membersLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: t.surface,
+      borderRadius: 12,
+      padding: 12,
+      gap: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.divider,
+    },
+    membersLabel: { color: t.text, fontSize: 14, flex: 1 },
+    memberInitial: { color: '#fff', fontWeight: '700', fontSize: 11 },
     memberName: { color: t.text, fontSize: 14 },
     memberRole: { color: t.textMuted, fontSize: 12 },
+    feedRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      paddingVertical: 10,
+    },
+    feedDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: t.accentBlue,
+      marginTop: 7,
+    },
+    feedAuthor: { color: t.text, fontWeight: '600', fontSize: 13 },
+    feedSummary: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
+    feedTimestamp: { color: t.textMuted, fontSize: 11, marginTop: 4 },
   });
 }

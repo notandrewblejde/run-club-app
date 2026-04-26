@@ -1,18 +1,13 @@
 /**
  * Hand-authored placeholder. Regenerate from the running server with:
  *   npm run gen:api
- *
- * Mirrors openapi-typescript v7 output so swapping the generated file in is
- * a no-op for callers.
  */
 
 export interface paths {
   '/v1/activities': {
     get: {
       parameters: { query?: { page?: number; limit?: number } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['Activity']> } };
-      };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Activity']> } } };
     };
   };
   '/v1/activities/{activityId}': {
@@ -42,9 +37,7 @@ export interface paths {
   '/v1/activities/{activityId}/comments': {
     get: {
       parameters: { path: { activityId: string }; query?: { page?: number; limit?: number } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['Comment']> } };
-      };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Comment']> } } };
     };
     post: {
       parameters: { path: { activityId: string } };
@@ -75,17 +68,13 @@ export interface paths {
   '/v1/clubs/public': {
     get: {
       parameters: { query?: { page?: number; limit?: number } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['Club']> } };
-      };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Club']> } } };
     };
   };
   '/v1/clubs/my-clubs': {
     get: {
       parameters: { query?: { page?: number; limit?: number } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['Club']> } };
-      };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Club']> } } };
     };
   };
   '/v1/clubs/{clubId}': {
@@ -98,9 +87,29 @@ export interface paths {
     get: {
       parameters: { path: { clubId: string }; query?: { page?: number; limit?: number } };
       responses: {
-        200: {
-          content: { 'application/json': ApiList<components['schemas']['ClubMembership']> };
-        };
+        200: { content: { 'application/json': ApiList<components['schemas']['ClubMembership']> } };
+      };
+    };
+  };
+  '/v1/clubs/{clubId}/members/{userId}': {
+    patch: {
+      parameters: { path: { clubId: string; userId: string } };
+      requestBody: { content: { 'application/json': { role: 'owner' | 'admin' | 'member' } } };
+      responses: {
+        200: { content: { 'application/json': components['schemas']['ClubMembership'] } };
+      };
+    };
+    delete: {
+      parameters: { path: { clubId: string; userId: string } };
+      responses: { 204: never };
+    };
+  };
+  '/v1/clubs/{clubId}/invitations': {
+    post: {
+      parameters: { path: { clubId: string } };
+      requestBody: { content: { 'application/json': { user_id: string } } };
+      responses: {
+        201: { content: { 'application/json': components['schemas']['ClubMembership'] } };
       };
     };
   };
@@ -112,12 +121,29 @@ export interface paths {
       };
     };
   };
+  '/v1/clubs/{clubId}/feed': {
+    get: {
+      parameters: { path: { clubId: string }; query?: { page?: number; limit?: number } };
+      responses: {
+        200: {
+          content: {
+            'application/json': { feed: components['schemas']['ClubFeedItem'][]; total: number };
+          };
+        };
+      };
+    };
+  };
+  '/v1/clubs/{clubId}/posts': {
+    post: {
+      parameters: { path: { clubId: string } };
+      requestBody: { content: { 'application/json': { content: string; photos?: string[] } } };
+      responses: { 201: { content: { 'application/json': components['schemas']['Post'] } } };
+    };
+  };
   '/v1/clubs/{clubId}/goals': {
     get: {
       parameters: { path: { clubId: string } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['Goal']> } };
-      };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Goal']> } } };
     };
     post: {
       parameters: { path: { clubId: string } };
@@ -137,9 +163,7 @@ export interface paths {
   '/v1/clubs/{clubId}/goals/active': {
     get: {
       parameters: { path: { clubId: string } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['Goal']> } };
-      };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Goal']> } } };
     };
   };
   '/v1/clubs/{clubId}/goals/{goalId}/progress': {
@@ -154,17 +178,13 @@ export interface paths {
     get: {
       parameters: { path: { clubId: string; goalId: string } };
       responses: {
-        200: {
-          content: { 'application/json': ApiList<components['schemas']['LeaderboardEntry']> };
-        };
+        200: { content: { 'application/json': ApiList<components['schemas']['LeaderboardEntry']> } };
       };
     };
   };
   '/v1/users/me': {
     get: {
-      responses: {
-        200: { content: { 'application/json': components['schemas']['UserProfile'] } };
-      };
+      responses: { 200: { content: { 'application/json': components['schemas']['UserProfile'] } } };
     };
     patch: {
       requestBody: {
@@ -175,6 +195,7 @@ export interface paths {
             city: string;
             state: string;
             avatar_url: string;
+            privacy_level: 'public' | 'private';
           }>;
         };
       };
@@ -183,12 +204,27 @@ export interface paths {
       };
     };
   };
+  '/v1/users/me/avatar/presign': {
+    post: {
+      requestBody: { content: { 'application/json': { content_type: string } } };
+      responses: {
+        200: {
+          content: {
+            'application/json': {
+              upload_url: string;
+              public_url: string;
+              method: string;
+              content_type: string;
+            };
+          };
+        };
+      };
+    };
+  };
   '/v1/users': {
     get: {
       parameters: { query: { q: string; limit?: number } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['User']> } };
-      };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['User']> } } };
     };
   };
   '/v1/users/{userId}': {
@@ -199,46 +235,71 @@ export interface paths {
       };
     };
   };
-  '/v1/users/{userId}/follow': {
-    post: {
-      parameters: { path: { userId: string } };
-      responses: { 201: { content: { 'application/json': components['schemas']['Follow'] } } };
-    };
-    delete: {
-      parameters: { path: { userId: string } };
-      responses: { 204: never };
-    };
-  };
-  '/v1/users/{userId}/followers': {
+  '/v1/users/{userId}/activities': {
     get: {
       parameters: { path: { userId: string }; query?: { page?: number; limit?: number } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['Follow']> } };
-      };
-    };
-  };
-  '/v1/users/{userId}/following': {
-    get: {
-      parameters: { path: { userId: string }; query?: { page?: number; limit?: number } };
-      responses: {
-        200: { content: { 'application/json': ApiList<components['schemas']['Follow']> } };
-      };
-    };
-  };
-  '/v1/feed/home': {
-    get: {
-      parameters: { query?: { page?: number; limit?: number } };
       responses: {
         200: { content: { 'application/json': ApiList<components['schemas']['Activity']> } };
       };
     };
   };
-  '/v1/strava/auth': {
-    get: {
+  '/v1/users/{userId}/follow': {
+    post: {
+      parameters: { path: { userId: string } };
       responses: {
-        200: { content: { 'application/json': { authorization_url: string } } };
+        201: {
+          content: {
+            'application/json': {
+              object: 'follow';
+              follower_id: string;
+              following_id: string;
+              user?: components['schemas']['User'];
+              status: 'pending' | 'accepted';
+              created?: number;
+            };
+          };
+        };
       };
     };
+    delete: { parameters: { path: { userId: string } }; responses: { 204: never } };
+  };
+  '/v1/users/{userId}/followers': {
+    get: {
+      parameters: { path: { userId: string }; query?: { page?: number; limit?: number } };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Follow']> } } };
+    };
+  };
+  '/v1/users/{userId}/following': {
+    get: {
+      parameters: { path: { userId: string }; query?: { page?: number; limit?: number } };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Follow']> } } };
+    };
+  };
+  '/v1/follow-requests': {
+    get: {
+      parameters: { query?: { page?: number; limit?: number } };
+      responses: {
+        200: { content: { 'application/json': ApiList<components['schemas']['FollowRequest']> } };
+      };
+    };
+  };
+  '/v1/follow-requests/{requestId}/accept': {
+    post: {
+      parameters: { path: { requestId: string } };
+      responses: { 200: { content: { 'application/json': components['schemas']['FollowRequest'] } } };
+    };
+  };
+  '/v1/follow-requests/{requestId}': {
+    delete: { parameters: { path: { requestId: string } }; responses: { 204: never } };
+  };
+  '/v1/feed/home': {
+    get: {
+      parameters: { query?: { page?: number; limit?: number } };
+      responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Activity']> } } };
+    };
+  };
+  '/v1/strava/auth': {
+    get: { responses: { 200: { content: { 'application/json': { authorization_url: string } } } } };
   };
   '/v1/strava/callback': {
     get: {
@@ -286,11 +347,12 @@ export interface components {
       bio?: string;
       city?: string;
       state?: string;
+      privacy_level: 'public' | 'private';
       strava_connected: boolean;
       followers_count: number;
       following_count: number;
       is_self: boolean;
-      followed_by_viewer?: boolean;
+      follow_status: 'self' | 'none' | 'pending' | 'accepted';
       stats: components['schemas']['UserStats'];
     };
     Activity: {
@@ -387,8 +449,31 @@ export interface components {
       user?: components['schemas']['User'];
       created?: number;
     };
-    ApiError: {
-      error: { type: string; code?: string; message?: string };
+    FollowRequest: {
+      object: 'follow_request';
+      id: string;
+      requester?: components['schemas']['User'];
+      status: 'pending';
+      created?: number;
     };
+    Post: {
+      object: 'post';
+      id: string;
+      club_id: string;
+      author?: components['schemas']['User'];
+      content: string;
+      photos?: string[];
+      created?: number;
+    };
+    /**
+     * Mixed feed item (post or activity). Backend currently emits a loose
+     * shape; check `type` to discriminate.
+     */
+    ClubFeedItem: {
+      type: 'post' | 'activity';
+      id: string;
+      [key: string]: unknown;
+    };
+    ApiError: { error: { type: string; code?: string; message?: string } };
   };
 }

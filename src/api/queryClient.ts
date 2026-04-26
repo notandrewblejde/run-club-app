@@ -44,4 +44,7 @@ export const qk = {
 
   followers: (userId: string) => ['user', userId, 'followers'] as const,
   following: (userId: string) => ['user', userId, 'following'] as const,
+  userActivities: (userId: string) => ['user', userId, 'activities'] as const,
+  followRequests: () => ['follow-requests'] as const,
+  clubFeed: (clubId: string) => ['club', clubId, 'feed'] as const,
 };

@@ -285,7 +285,18 @@ export function useUserSearch(q: string, opts?: { enabled?: boolean }) {
 
 export function useUpdateMe() {
   const qc = useQueryClient();
-  return useMutation<UserProfile, Error, Partial<{ name: string; bio: string; city: string; state: string; avatar_url: string }>>({
+  return useMutation<
+    UserProfile,
+    Error,
+    Partial<{
+      name: string;
+      bio: string;
+      city: string;
+      state: string;
+      avatar_url: string;
+      privacy_level: 'public' | 'private';
+    }>
+  >({
     mutationFn: (body) => unwrap(api.PATCH('/v1/users/me', { body })),
     onSuccess: (profile) => {
       qc.setQueryData(qk.me(), profile);
@@ -297,13 +308,176 @@ export function useUpdateMe() {
 
 export function useFollowUser() {
   const qc = useQueryClient();
-  return useMutation<Follow, Error, string>({
+  return useMutation<{ status: 'pending' | 'accepted' }, Error, string>({
     mutationFn: (userId) =>
-      unwrap(api.POST('/v1/users/{userId}/follow', { params: { path: { userId } } })),
+      unwrap(api.POST('/v1/users/{userId}/follow', { params: { path: { userId } } })) as Promise<{
+        status: 'pending' | 'accepted';
+      }>,
     onSuccess: (_d, userId) => {
       void qc.invalidateQueries({ queryKey: qk.user(userId) });
       void qc.invalidateQueries({ queryKey: qk.activities('following') });
       void qc.invalidateQueries({ queryKey: qk.me() });
+    },
+  });
+}
+
+export function useUserFollowers(userId: string | undefined) {
+  return useQuery({
+    queryKey: qk.followers(userId ?? ''),
+    enabled: !!userId,
+    queryFn: () =>
+      unwrap(
+        api.GET('/v1/users/{userId}/followers', {
+          params: { path: { userId: userId! }, query: { page: 1, limit: 100 } },
+        }),
+      ),
+  });
+}
+
+export function useUserFollowing(userId: string | undefined) {
+  return useQuery({
+    queryKey: qk.following(userId ?? ''),
+    enabled: !!userId,
+    queryFn: () =>
+      unwrap(
+        api.GET('/v1/users/{userId}/following', {
+          params: { path: { userId: userId! }, query: { page: 1, limit: 100 } },
+        }),
+      ),
+  });
+}
+
+export function useUserActivities(userId: string | undefined) {
+  return useQuery({
+    queryKey: qk.userActivities(userId ?? ''),
+    enabled: !!userId,
+    queryFn: () =>
+      unwrap(
+        api.GET('/v1/users/{userId}/activities', {
+          params: { path: { userId: userId! }, query: { page: 1, limit: 20 } },
+        }),
+      ),
+  });
+}
+
+export function useFollowRequests() {
+  return useQuery({
+    queryKey: qk.followRequests(),
+    queryFn: () => unwrap(api.GET('/v1/follow-requests', { params: { query: { page: 1, limit: 50 } } })),
+  });
+}
+
+export function useAcceptFollowRequest() {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, string>({
+    mutationFn: (requestId) =>
+      unwrap(
+        api.POST('/v1/follow-requests/{requestId}/accept', {
+          params: { path: { requestId } },
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.followRequests() });
+      void qc.invalidateQueries({ queryKey: qk.me() });
+    },
+  });
+}
+
+export function useRejectFollowRequest() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (requestId) => {
+      const { response } = await api.DELETE('/v1/follow-requests/{requestId}', {
+        params: { path: { requestId } },
+      });
+      if (!response.ok && response.status !== 204) throw new Error('Reject failed');
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.followRequests() });
+    },
+  });
+}
+
+// ---------- Avatar upload (presigned S3) ----------
+
+export function usePresignAvatar() {
+  return useMutation<
+    { upload_url: string; public_url: string; method: string; content_type: string },
+    Error,
+    string // content_type
+  >({
+    mutationFn: (contentType) =>
+      unwrap(
+        api.POST('/v1/users/me/avatar/presign', {
+          body: { content_type: contentType },
+        }),
+      ) as Promise<{
+        upload_url: string;
+        public_url: string;
+        method: string;
+        content_type: string;
+      }>,
+  });
+}
+
+// ---------- Club feed + invitations + members ----------
+
+export function useClubFeed(clubId: string | undefined) {
+  return useQuery({
+    queryKey: qk.clubFeed(clubId ?? ''),
+    enabled: !!clubId,
+    queryFn: () =>
+      unwrap(
+        api.GET('/v1/clubs/{clubId}/feed', {
+          params: { path: { clubId: clubId! }, query: { page: 1, limit: 30 } },
+        }),
+      ),
+  });
+}
+
+export function useInviteMember(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, string>({
+    mutationFn: (userIdToInvite) =>
+      unwrap(
+        api.POST('/v1/clubs/{clubId}/invitations', {
+          params: { path: { clubId } },
+          body: { user_id: userIdToInvite },
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.clubMembers(clubId) });
+    },
+  });
+}
+
+export function useUpdateMemberRole(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<unknown, Error, { userId: string; role: 'owner' | 'admin' | 'member' }>({
+    mutationFn: ({ userId, role }) =>
+      unwrap(
+        api.PATCH('/v1/clubs/{clubId}/members/{userId}', {
+          params: { path: { clubId, userId } },
+          body: { role },
+        }),
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.clubMembers(clubId) });
+    },
+  });
+}
+
+export function useRemoveMember(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (userId) => {
+      const { response } = await api.DELETE('/v1/clubs/{clubId}/members/{userId}', {
+        params: { path: { clubId, userId } },
+      });
+      if (!response.ok && response.status !== 204) throw new Error('Remove failed');
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.clubMembers(clubId) });
     },
   });
 }
