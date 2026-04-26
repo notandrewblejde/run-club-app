@@ -166,6 +166,26 @@ export interface paths {
       responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Goal']> } } };
     };
   };
+  '/v1/clubs/{clubId}/goals/{goalId}': {
+    patch: {
+      parameters: { path: { clubId: string; goalId: string } };
+      requestBody: {
+        content: {
+          'application/json': {
+            name?: string;
+            target_distance_miles?: number;
+            start_date?: string;
+            end_date?: string;
+          };
+        };
+      };
+      responses: { 200: { content: { 'application/json': components['schemas']['Goal'] } } };
+    };
+    delete: {
+      parameters: { path: { clubId: string; goalId: string } };
+      responses: { 204: never };
+    };
+  };
   '/v1/clubs/{clubId}/goals/{goalId}/progress': {
     get: {
       parameters: { path: { clubId: string; goalId: string } };
@@ -422,6 +442,7 @@ export interface components {
       club_id: string;
       user?: components['schemas']['User'];
       role: 'owner' | 'admin' | 'member';
+      /** Unix seconds; goal credit uses goal dates, not join time */
       joined?: number;
     };
     Goal: {

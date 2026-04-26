@@ -65,4 +65,26 @@ export async function unwrap<T>(
   return data;
 }
 
+/** For DELETE / 204 responses with no JSON body. */
+export async function unwrapNoContent(
+  promise: Promise<{
+    data?: unknown;
+    error?: components['schemas']['ApiError'];
+    response: Response;
+  }>,
+): Promise<void> {
+  const { error, response } = await promise;
+  if (error) {
+    throw new ApiError(
+      response.status,
+      error.error?.type ?? 'api_error',
+      error.error?.message ?? 'Request failed',
+      error.error?.code,
+    );
+  }
+  if (!response.ok && response.status !== 204) {
+    throw new ApiError(response.status, 'api_error', `Request failed (${response.status})`);
+  }
+}
+
 export type { paths, components } from './schema';

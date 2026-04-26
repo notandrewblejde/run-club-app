@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, unwrap, type components } from './client';
+import { api, unwrap, unwrapNoContent, type components } from './client';
 import { qk } from './queryClient';
 
 type Activity = components['schemas']['Activity'];
@@ -237,6 +237,55 @@ export function useCreateGoal(clubId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, true) });
       void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, false) });
+    },
+  });
+}
+
+export function useUpdateGoal(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<
+    Goal,
+    Error,
+    {
+      goalId: string;
+      body: Partial<{
+        name: string;
+        target_distance_miles: number;
+        start_date: string;
+        end_date: string;
+      }>;
+    }
+  >({
+    mutationFn: ({ goalId, body }) =>
+      unwrap(
+        api.PATCH('/v1/clubs/{clubId}/goals/{goalId}', {
+          params: { path: { clubId, goalId } },
+          body,
+        }),
+      ),
+    onSuccess: (_data, { goalId }) => {
+      void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, true) });
+      void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, false) });
+      void qc.invalidateQueries({ queryKey: qk.goalProgress(clubId, goalId) });
+      void qc.invalidateQueries({ queryKey: qk.goalLeaderboard(clubId, goalId) });
+    },
+  });
+}
+
+export function useDeleteGoal(clubId: string) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (goalId) =>
+      unwrapNoContent(
+        api.DELETE('/v1/clubs/{clubId}/goals/{goalId}', {
+          params: { path: { clubId, goalId } },
+        }),
+      ),
+    onSuccess: (_void, goalId) => {
+      void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, true) });
+      void qc.invalidateQueries({ queryKey: qk.clubGoals(clubId, false) });
+      void qc.removeQueries({ queryKey: qk.goalProgress(clubId, goalId) });
+      void qc.removeQueries({ queryKey: qk.goalLeaderboard(clubId, goalId) });
     },
   });
 }
