@@ -423,6 +423,16 @@ export interface paths {
       responses: { 200: { content: { 'application/json': ApiList<components['schemas']['Activity']> } } };
     };
   };
+  '/v1/me/ai/chat': {
+    post: {
+      requestBody: {
+        content: { 'application/json': { message: string } };
+      };
+      responses: {
+        200: { content: { 'application/json': { reply: string } } };
+      };
+    };
+  };
   '/v1/me/training-goal': {
     get: {
       responses: {

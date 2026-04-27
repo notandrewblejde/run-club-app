@@ -53,3 +53,12 @@ export function formatElevation(ft?: number | null): string {
   if (ft === undefined || ft === null) return '—';
   return `${Math.round(Number(ft))} ft`;
 }
+
+/** Up to the first two sentences (split on `.` / `!` / `?` + space). For coach teaser copy. */
+export function firstTwoSentences(text: string): string {
+  const t = text.trim();
+  if (!t) return '';
+  const parts = t.split(/(?<=[.!?])\s+/).filter(Boolean);
+  if (parts.length <= 2) return t;
+  return `${parts[0]} ${parts[1]}`.trim();
+}

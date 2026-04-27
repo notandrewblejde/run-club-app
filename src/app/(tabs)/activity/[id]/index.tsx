@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   View,
   Text,
@@ -8,6 +9,7 @@ import {
   Image,
   TouchableOpacity,
   TextInput,
+  Keyboard,
   Alert,
   Modal,
   FlatList,
@@ -27,22 +29,33 @@ import {
 } from 'lucide-react-native';
 import {
   useActivity,
+  useActivityCoachChat,
+  useActivitySummary,
+  type ActivityCoachSummaryPayload,
   useAddComment,
   useComments,
   useDeleteComment,
   useMyClubs,
   useToggleKudo,
 } from '@/api/hooks';
+import { qk } from '@/api/queryClient';
+import { ApiError } from '@/api/client';
 import { generateStaticMapUrl } from '@/utils/mapbox';
 import {
   formatDateFromUnix,
   formatDuration,
   formatElevation,
+  firstTwoSentences,
   formatMiles,
   formatPace,
+  formatRelativeFromUnix,
 } from '@/utils/format';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
+
+function coachMsgId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 export default function ActivityDetailScreen() {
   const { tokens } = useTheme();
@@ -61,18 +74,61 @@ export default function ActivityDetailScreen() {
     }
     router.replace('/(tabs)/feed');
   }, [from, profileId]);
+  const qc = useQueryClient();
   const activityQ = useActivity(id);
+  const summaryQ = useActivitySummary(id, {
+    enabled:
+      !!id &&
+      !!activityQ.data &&
+      !(
+        activityQ.data.ai_coach_summary &&
+        activityQ.data.ai_coach_summary.trim().length > 0
+      ),
+  });
   const commentsQ = useComments(id);
   const myClubsQ = useMyClubs();
   const toggleKudo = useToggleKudo(id ?? '');
   const addComment = useAddComment(id ?? '');
   const deleteComment = useDeleteComment(id ?? '');
+  const coachChat = useActivityCoachChat();
 
   const [draft, setDraft] = useState('');
+  const [activityTab, setActivityTab] = useState<'comments' | 'coach'>('comments');
   const [shareOpen, setShareOpen] = useState(false);
+  const [coachMessages, setCoachMessages] = useState<
+    { id: string; role: 'user' | 'assistant'; content: string }[]
+  >([]);
+  const [coachDraft, setCoachDraft] = useState('');
+  const coachScrollRef = useRef<ScrollView>(null);
+  const coachSeedId = useRef<string | null>(null);
+
+  useEffect(() => {
+    setActivityTab('comments');
+  }, [id]);
+
+  useEffect(() => {
+    const a = activityQ.data;
+    if (!a) return;
+    if (coachSeedId.current === a.id) return;
+    coachSeedId.current = a.id;
+    // Coach's take (main scroll) carries the summary; chat starts empty with the tab hint.
+    setCoachMessages([]);
+    setCoachDraft('');
+  }, [activityQ.data]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => coachScrollRef.current?.scrollToEnd({ animated: true }));
+  }, [coachMessages]);
+
+  useEffect(() => {
+    const a = activityQ.data;
+    const s = (summaryQ.data as ActivityCoachSummaryPayload | undefined)?.summary?.trim();
+    if (!a?.id || !s) return;
+    if ((a.ai_coach_summary?.trim() ?? '').length > 0) return;
+    qc.setQueryData(qk.activity(a.id), { ...a, ai_coach_summary: s });
+  }, [activityQ.data, summaryQ.data, qc]);
 
   if (!id) return null;
-  const activity = activityQ.data;
 
   if (activityQ.isLoading) {
     return (
@@ -81,13 +137,24 @@ export default function ActivityDetailScreen() {
       </View>
     );
   }
-  if (activityQ.isError || !activity) {
+  if (activityQ.isError || !activityQ.data) {
     return (
       <View style={[styles.container, styles.center]}>
         <Text style={styles.errorText}>{activityQ.error?.message ?? 'Activity not found'}</Text>
       </View>
     );
   }
+
+  const activity = activityQ.data;
+  const summaryPayload = summaryQ.data as ActivityCoachSummaryPayload | undefined;
+
+  const coachTakeRaw =
+    activity.ai_coach_summary?.trim() || summaryPayload?.summary?.trim() || '';
+  const coachTakeLoading =
+    summaryQ.isPending &&
+    !(activity.ai_coach_summary?.trim()) &&
+    !summaryPayload?.summary?.trim();
+  const showCoachTake = coachTakeRaw.length > 0 || coachTakeLoading;
 
   const mapUrl = generateStaticMapUrl(activity.map_polyline, 800, 320, {
     style: tokens.mapStyle,
@@ -106,6 +173,30 @@ export default function ActivityDetailScreen() {
       setDraft('');
     } catch (e: unknown) {
       Alert.alert('Could not post comment', (e as Error)?.message);
+    }
+  };
+
+  const sendCoachMessage = async () => {
+    if (!activity.owned_by_viewer || !id) return;
+    const text = coachDraft.trim();
+    if (!text) return;
+    Keyboard.dismiss();
+    setCoachDraft('');
+    setCoachMessages((m) => [...m, { id: coachMsgId(), role: 'user', content: text }]);
+    try {
+      const res = await coachChat.mutateAsync({ activityId: id, message: text });
+      setCoachMessages((m) => [
+        ...m,
+        { id: coachMsgId(), role: 'assistant', content: res?.reply ?? 'No reply.' },
+      ]);
+    } catch (e: unknown) {
+      if (__DEV__ && e instanceof ApiError) {
+        console.warn('[Activity coach]', e.message, e.status);
+      }
+      setCoachMessages((m) => [
+        ...m,
+        { id: coachMsgId(), role: 'assistant', content: (e as Error)?.message ?? 'Something went wrong.' },
+      ]);
     }
   };
 
@@ -211,13 +302,21 @@ export default function ActivityDetailScreen() {
           </View>
         )}
 
-        {activity.ai_coach_summary?.trim() ? (
-          <View style={styles.coachCard}>
-            <View style={styles.coachHeader}>
+        {showCoachTake ? (
+          <View style={styles.coachTakeCard}>
+            <View style={styles.coachTakeHeader}>
               <Sparkles size={14} color={tokens.accentOrange} />
-              <Text style={styles.coachTitle}>Coach insight</Text>
+              <Text style={styles.coachTakeTitle}>{`Coach's take`}</Text>
             </View>
-            <Text style={styles.coachBody}>{activity.ai_coach_summary.trim()}</Text>
+            {coachTakeLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={tokens.accentOrange}
+                style={styles.coachTakeLoading}
+              />
+            ) : (
+              <Text style={styles.coachTakeBody}>{firstTwoSentences(coachTakeRaw)}</Text>
+            )}
           </View>
         ) : null}
 
@@ -269,51 +368,146 @@ export default function ActivityDetailScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Comments</Text>
-        {comments.length === 0 && !commentsQ.isLoading ? (
-          <Text style={styles.emptyComments}>Be the first to drop a comment.</Text>
+        {activity.owned_by_viewer ? (
+          <View style={styles.tabBar}>
+            <TouchableOpacity
+              style={[styles.tabPill, activityTab === 'comments' && styles.tabPillActive]}
+              onPress={() => setActivityTab('comments')}
+              activeOpacity={0.85}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activityTab === 'comments' }}
+            >
+              <Text style={[styles.tabPillText, activityTab === 'comments' && styles.tabPillTextActive]}>
+                Comments
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabPill, activityTab === 'coach' && styles.tabPillActive]}
+              onPress={() => setActivityTab('coach')}
+              activeOpacity={0.85}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activityTab === 'coach' }}
+            >
+              <Text style={[styles.tabPillText, activityTab === 'coach' && styles.tabPillTextActive]}>Coach</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
-          comments.map((c) => (
-            <View key={c.id} style={styles.commentRow}>
-              <View style={styles.commentAvatar}>
-                <Text style={styles.commentInitial}>
-                  {(c.user?.name ?? '?').slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.commentBody}>
-                <Text style={styles.commentName}>{c.user?.name ?? 'Unnamed'}</Text>
-                <Text style={styles.commentContent}>{c.content}</Text>
-              </View>
-              {activity.owned_by_viewer || c.user?.id === activity.user?.id ? (
-                <TouchableOpacity onPress={() => deleteComment.mutate(c.id)} hitSlop={8}>
-                  <Trash2 size={14} color={tokens.textMuted} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ))
+          <Text style={styles.sectionTitle}>Comments</Text>
         )}
+
+        {(!activity.owned_by_viewer || activityTab === 'comments') && (
+          <>
+            {comments.length === 0 && !commentsQ.isLoading ? (
+              <Text style={styles.emptyComments}>Be the first to drop a comment.</Text>
+            ) : (
+              comments.map((c) => (
+                <View key={c.id} style={styles.commentRow}>
+                  <View style={styles.commentAvatar}>
+                    <Text style={styles.commentInitial}>
+                      {(c.user?.name ?? '?').slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.commentBody}>
+                    <Text style={styles.commentName}>{c.user?.name ?? 'Unnamed'}</Text>
+                    <Text style={styles.commentContent}>{c.content}</Text>
+                  </View>
+                  {activity.owned_by_viewer || c.user?.id === activity.user?.id ? (
+                    <TouchableOpacity onPress={() => deleteComment.mutate(c.id)} hitSlop={8}>
+                      <Trash2 size={14} color={tokens.textMuted} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </>
+        )}
+
+        {activity.owned_by_viewer && activityTab === 'coach' ? (
+          <View style={styles.coachChatCard}>
+            <Text style={styles.coachTabHint}>
+              {`Ask about this workout — replies use this activity's stats.`}
+            </Text>
+            <ScrollView
+              ref={coachScrollRef}
+              style={styles.coachChatThreadTab}
+              contentContainerStyle={styles.coachChatThreadContent}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
+              {coachMessages.map((m) => (
+                <View
+                  key={m.id}
+                  style={[
+                    styles.coachBubbleWrap,
+                    m.role === 'user' ? styles.coachBubbleWrapUser : styles.coachBubbleWrapAssistant,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.coachBubble,
+                      m.role === 'user' ? styles.coachBubbleUser : styles.coachBubbleAssistant,
+                    ]}
+                  >
+                    <Text
+                      style={m.role === 'user' ? styles.coachBubbleTextUser : styles.coachBubbleTextAssistant}
+                    >
+                      {m.content}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+              {coachChat.isPending ? (
+                <View style={styles.coachTyping}>
+                  <ActivityIndicator size="small" color={tokens.accentOrange} />
+                </View>
+              ) : null}
+            </ScrollView>
+          </View>
+        ) : null}
       </ScrollView>
 
-      <View style={styles.composer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Add a comment…"
-          placeholderTextColor={tokens.placeholder}
-          value={draft}
-          onChangeText={setDraft}
-          multiline
-        />
-        <TouchableOpacity
-          style={[
-            styles.sendBtn,
-            (!draft.trim() || addComment.isPending) && styles.sendBtnDisabled,
-          ]}
-          onPress={handlePost}
-          disabled={!draft.trim() || addComment.isPending}
-        >
-          <Send size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      {!activity.owned_by_viewer || activityTab === 'comments' ? (
+        <View style={styles.composer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Add a comment…"
+            placeholderTextColor={tokens.placeholder}
+            value={draft}
+            onChangeText={setDraft}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, (!draft.trim() || addComment.isPending) && styles.sendBtnDisabled]}
+            onPress={handlePost}
+            disabled={!draft.trim() || addComment.isPending}
+          >
+            <Send size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.composer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Ask your coach about this run…"
+            placeholderTextColor={tokens.placeholder}
+            value={coachDraft}
+            onChangeText={setCoachDraft}
+            multiline
+            maxLength={2000}
+            editable={!coachChat.isPending}
+          />
+          <TouchableOpacity
+            style={[
+              styles.sendBtn,
+              (!coachDraft.trim() || coachChat.isPending) && styles.sendBtnDisabled,
+            ]}
+            onPress={() => void sendCoachMessage()}
+            disabled={!coachDraft.trim() || coachChat.isPending}
+          >
+            <Send size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -387,18 +581,67 @@ function makeStyles(t: ThemeTokens) {
     },
     mapPlaceholder: { alignItems: 'center', justifyContent: 'center' },
     mapPlaceholderText: { color: t.textMuted, fontSize: 13 },
-    coachCard: {
+    coachTakeCard: {
+      marginHorizontal: 20,
+      marginBottom: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      backgroundColor: t.surfaceElevated,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.accentOrange,
+    },
+    coachTakeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+    coachTakeTitle: { color: t.text, fontWeight: '700', fontSize: 12, letterSpacing: 0.2 },
+    coachTakeBody: { color: t.textSecondary, fontSize: 13, lineHeight: 19 },
+    coachTakeLoading: { alignSelf: 'flex-start', marginTop: 4 },
+    coachChatCard: {
       marginHorizontal: 20,
       marginBottom: 16,
       padding: 14,
       borderRadius: 12,
       backgroundColor: t.surfaceElevated,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.accentOrange,
+      borderColor: t.divider,
     },
-    coachHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    coachTitle: { color: t.text, fontWeight: '700', fontSize: 13 },
-    coachBody: { color: t.textSecondary, fontSize: 14, lineHeight: 20 },
+    coachChatHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+    coachChatTitle: { color: t.text, fontWeight: '700', fontSize: 13 },
+    coachChatThread: { maxHeight: 240 },
+    coachChatThreadContent: { paddingBottom: 8, flexGrow: 1 },
+    coachBubbleWrap: { marginBottom: 10, maxWidth: '92%' },
+    coachBubbleWrapUser: { alignSelf: 'flex-end' },
+    coachBubbleWrapAssistant: { alignSelf: 'flex-start' },
+    coachBubble: { borderRadius: 14, paddingVertical: 8, paddingHorizontal: 12 },
+    coachBubbleUser: { backgroundColor: t.accentBlue },
+    coachBubbleAssistant: {
+      backgroundColor: t.background,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.divider,
+    },
+    coachBubbleTextUser: { color: '#fff', fontSize: 14, lineHeight: 20 },
+    coachBubbleTextAssistant: { color: t.text, fontSize: 14, lineHeight: 20 },
+    coachTyping: { paddingVertical: 6, alignItems: 'flex-start' },
+    coachChatComposer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 8 },
+    coachChatInput: {
+      flex: 1,
+      minHeight: 40,
+      maxHeight: 100,
+      borderRadius: 18,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: t.text,
+      backgroundColor: t.background,
+    },
+    coachChatSend: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: t.accentOrange,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    coachChatSendDisabled: { opacity: 0.45 },
     statGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 16 },
     statBlock: { width: '33%', paddingVertical: 8 },
     statLabel: {
@@ -410,9 +653,34 @@ function makeStyles(t: ThemeTokens) {
     statValue: { color: t.text, fontSize: 14, fontWeight: '600' },
     photoStrip: { paddingHorizontal: 20, gap: 8, marginBottom: 16 },
     photo: { width: 160, height: 120, borderRadius: 8, marginRight: 8, backgroundColor: t.surfaceElevated },
-    engagementRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 24, marginBottom: 24 },
+    engagementRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 24, marginBottom: 16 },
     engagementBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     engagementCount: { color: t.textSecondary, fontSize: 14 },
+    tabBar: {
+      flexDirection: 'row',
+      marginHorizontal: 20,
+      marginBottom: 12,
+      padding: 3,
+      borderRadius: 10,
+      backgroundColor: t.surfaceElevated,
+      gap: 4,
+    },
+    tabPill: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: 'center',
+      borderRadius: 8,
+    },
+    tabPillActive: { backgroundColor: t.background },
+    tabPillText: { color: t.textMuted, fontSize: 14, fontWeight: '600' },
+    tabPillTextActive: { color: t.text },
+    coachTabHint: {
+      color: t.textMuted,
+      fontSize: 13,
+      lineHeight: 18,
+      marginBottom: 10,
+    },
+    coachChatThreadTab: { maxHeight: 360, minHeight: 200 },
     sectionTitle: {
       color: t.text,
       fontWeight: '600',

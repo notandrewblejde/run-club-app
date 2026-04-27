@@ -151,14 +151,18 @@ export function useActivity(id: string | undefined, opts?: { enabled?: boolean }
   });
 }
 
+export type ActivityCoachSummaryPayload = { activity_id: string; summary: string };
+
 export function useActivitySummary(id: string | undefined, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: qk.activitySummary(id ?? ''),
     enabled: !!id && opts?.enabled !== false,
-    queryFn: async () =>
-      unwrap(
+    queryFn: async () => {
+      const data = await unwrap(
         api.GET('/v1/activities/{activityId}/summary', { params: { path: { activityId: id! } } }),
-      ),
+      );
+      return data as ActivityCoachSummaryPayload;
+    },
   });
 }
 
@@ -171,6 +175,13 @@ export function useActivityCoachChat() {
           body: { message: vars.message },
         }),
       ),
+  });
+}
+
+export function useGlobalAiCoachChat() {
+  return useMutation({
+    mutationFn: async (vars: { message: string }) =>
+      unwrap(api.POST('/v1/me/ai/chat', { body: { message: vars.message } })),
   });
 }
 
