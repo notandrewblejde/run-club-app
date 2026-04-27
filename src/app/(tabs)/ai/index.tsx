@@ -29,6 +29,7 @@ import {
 import { qk } from '@/api/queryClient';
 import { ApiError } from '@/api/client';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
+import { MarkdownBubbleContent } from '@/components/chat/MarkdownBubbleContent';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 
@@ -185,7 +186,7 @@ export default function AiCoachScreen() {
       // Close any existing stream
       esRef.current?.close();
 
-      const es = new EventSource(`${apiBase}/v1/me/ai/chat/stream`, {
+      const es = new EventSource<'done'>(`${apiBase}/v1/me/ai/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -418,9 +419,16 @@ export default function AiCoachScreen() {
                 </Text>
               ) : null}
               <View style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant]}>
-                <Text style={m.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextAssistant}>
-                  {m.content}
-                </Text>
+                {m.role === 'assistant' ? (
+                  <MarkdownBubbleContent
+                    content={m.content}
+                    variant="assistant"
+                    tokens={tokens}
+                    fontSize={15}
+                  />
+                ) : (
+                  <Text style={styles.bubbleTextUser}>{m.content}</Text>
+                )}
               </View>
             </View>
           ))}

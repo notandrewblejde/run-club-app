@@ -32,7 +32,6 @@ import {
 } from 'lucide-react-native';
 import {
   useActivity,
-  useActivityCoachChat,
   useActivitySummary,
   type ActivityCoachSummaryPayload,
   useAddComment,
@@ -53,6 +52,7 @@ import {
   formatPace,
   formatRelativeFromUnix,
 } from '@/utils/format';
+import { MarkdownBubbleContent } from '@/components/chat/MarkdownBubbleContent';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 
@@ -94,7 +94,6 @@ export default function ActivityDetailScreen() {
   const toggleKudo = useToggleKudo(id ?? '');
   const addComment = useAddComment(id ?? '');
   const deleteComment = useDeleteComment(id ?? '');
-  const coachChat = useActivityCoachChat();
 
   const [draft, setDraft] = useState('');
   const [activityTab, setActivityTab] = useState<'comments' | 'coach'>('comments');
@@ -133,6 +132,13 @@ export default function ActivityDetailScreen() {
     if ((a.ai_coach_summary?.trim() ?? '').length > 0) return;
     qc.setQueryData(qk.activity(a.id), { ...a, ai_coach_summary: s });
   }, [activityQ.data, summaryQ.data, qc]);
+
+  useEffect(() => {
+    return () => {
+      coachEsRef.current?.close();
+      coachEsRef.current = null;
+    };
+  }, []);
 
   if (!id) return null;
 
@@ -199,7 +205,7 @@ export default function ActivityDetailScreen() {
       const apiBase = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api';
 
       coachEsRef.current?.close();
-      const es = new EventSource(`${apiBase}/v1/activities/${id}/coach/chat/stream`, {
+      const es = new EventSource<'done'>(`${apiBase}/v1/activities/${id}/coach/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -238,8 +244,6 @@ export default function ActivityDetailScreen() {
       );
     }
   };
-
-  useEffect(() => { return () => { coachEsRef.current?.close(); }; }, []);
 
   const openShare = () => {
     if (!clubs.length) {
@@ -489,11 +493,16 @@ export default function ActivityDetailScreen() {
                       m.role === 'user' ? styles.coachBubbleUser : styles.coachBubbleAssistant,
                     ]}
                   >
-                    <Text
-                      style={m.role === 'user' ? styles.coachBubbleTextUser : styles.coachBubbleTextAssistant}
-                    >
-                      {m.content}
-                    </Text>
+                    {m.role === 'assistant' ? (
+                      <MarkdownBubbleContent
+                        content={m.content}
+                        variant="assistant"
+                        tokens={tokens}
+                        fontSize={14}
+                      />
+                    ) : (
+                      <Text style={styles.coachBubbleTextUser}>{m.content}</Text>
+                    )}
                   </View>
                 </View>
               ))}
