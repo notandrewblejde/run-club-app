@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronDown, Check, Search } from 'lucide-react-native';
+import { Bell, ChevronDown, Check, Search } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFeed, useNotificationsPreview, useTrainingToday } from '@/api/hooks';
 import { qk } from '@/api/queryClient';
@@ -25,6 +25,9 @@ type Scope = 'me' | 'following';
 type TrainingToday = components['schemas']['TrainingToday'];
 type Notification = components['schemas']['Notification'];
 type NotifPreview = { unread_count: number; latest: Notification | null };
+
+/** Matches API `user_notifications.type` for Strava post-run sync. */
+const ACTIVITY_ARRIVED = 'ACTIVITY_ARRIVED';
 
 const SCOPE_LABEL: Record<Scope, string> = {
   me: 'My runs',
@@ -48,6 +51,12 @@ export default function FeedScreen() {
     void qc.invalidateQueries({ queryKey: qk.notificationsPreview() });
   }, [refetch, qc]);
 
+  const preview = notifPreview.data;
+  const unread = preview?.unread_count ?? 0;
+  const showNotifInFeedStrip =
+    !notifPreview.isLoading && preview?.latest?.type === ACTIVITY_ARRIVED;
+  const showNotifHeaderBell = !notifPreview.isLoading && !showNotifInFeedStrip;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -59,14 +68,37 @@ export default function FeedScreen() {
           <Text style={styles.title}>{SCOPE_LABEL[scope]}</Text>
           <ChevronDown size={22} color={tokens.textMuted} strokeWidth={2.2} />
         </Pressable>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => router.push('/(tabs)/discover')}
-          accessibilityRole="button"
-          accessibilityLabel="Find runners"
-        >
-          <Search size={18} color={tokens.text} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {showNotifHeaderBell ? (
+            <TouchableOpacity
+              style={[styles.iconButton, styles.notifHeaderIconHit]}
+              onPress={() => router.push('/(tabs)/notifications')}
+              accessibilityRole="button"
+              accessibilityLabel={
+                unread > 0
+                  ? `Notifications, ${unread} unread`
+                  : 'Notifications'
+              }
+            >
+              <Bell size={19} color={tokens.text} strokeWidth={2.1} />
+              {unread > 0 ? (
+                <View style={styles.notifHeaderBadge} pointerEvents="none">
+                  <Text style={styles.notifHeaderBadgeText}>
+                    {unread > 99 ? '99+' : unread}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => router.push('/(tabs)/discover')}
+            accessibilityRole="button"
+            accessibilityLabel="Find runners"
+          >
+            <Search size={18} color={tokens.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -79,6 +111,8 @@ export default function FeedScreen() {
             trainingLoading={trainingToday.isLoading}
             preview={notifPreview.data}
             previewLoading={notifPreview.isLoading}
+            showNotifInFeedStrip={showNotifInFeedStrip}
+            unreadCount={unread}
           />
         }
         renderItem={({ item }) => (
@@ -146,14 +180,17 @@ function FeedHomeStrip({
   trainingLoading,
   preview,
   previewLoading,
+  showNotifInFeedStrip,
+  unreadCount,
 }: {
   styles: ReturnType<typeof makeStyles>;
   training: TrainingToday | undefined;
   trainingLoading: boolean;
   preview: NotifPreview | undefined;
   previewLoading: boolean;
+  showNotifInFeedStrip: boolean;
+  unreadCount: number;
 }) {
-  const unread = preview?.unread_count ?? 0;
   const teaser = preview?.latest?.title ?? '';
 
   return (
@@ -180,29 +217,31 @@ function FeedHomeStrip({
         </Text>
       </Pressable>
 
-      <Pressable
-        style={({ pressed }) => [styles.stripCard, pressed && { opacity: 0.92 }]}
-        onPress={() => router.push('/(tabs)/notifications')}
-      >
-        <View style={styles.stripRowBetween}>
-          <Text style={styles.stripLabel}>Notifications</Text>
-          {unread > 0 ? (
-            <View style={styles.stripBadge}>
-              <Text style={styles.stripBadgeText}>{unread > 99 ? '99+' : unread}</Text>
-            </View>
-          ) : null}
-        </View>
-        {previewLoading ? (
-          <Text style={styles.stripMuted}>Loading…</Text>
-        ) : teaser ? (
-          <Text style={styles.stripTeaser} numberOfLines={2}>
-            {teaser}
-          </Text>
-        ) : (
-          <Text style={styles.stripMuted}>Nothing new—sync a run to see updates.</Text>
-        )}
-        <Text style={styles.stripLink}>See all</Text>
-      </Pressable>
+      {showNotifInFeedStrip ? (
+        <Pressable
+          style={({ pressed }) => [styles.stripCard, pressed && { opacity: 0.92 }]}
+          onPress={() => router.push('/(tabs)/notifications')}
+        >
+          <View style={styles.stripRowBetween}>
+            <Text style={styles.stripLabel}>Run synced</Text>
+            {unreadCount > 0 ? (
+              <View style={styles.stripBadge}>
+                <Text style={styles.stripBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            ) : null}
+          </View>
+          {previewLoading ? (
+            <Text style={styles.stripMuted}>Loading…</Text>
+          ) : teaser ? (
+            <Text style={styles.stripTeaser} numberOfLines={2}>
+              {teaser}
+            </Text>
+          ) : (
+            <Text style={styles.stripMuted}>Open for details and recovery tips.</Text>
+          )}
+          <Text style={styles.stripLink}>See all</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -256,6 +295,7 @@ function makeStyles(t: ThemeTokens) {
     },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     title: { fontSize: 28, fontWeight: '700', color: t.text },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     iconButton: {
       width: 36,
       height: 36,
@@ -266,6 +306,20 @@ function makeStyles(t: ThemeTokens) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    notifHeaderIconHit: { position: 'relative' },
+    notifHeaderBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -2,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      backgroundColor: t.error,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    notifHeaderBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
     content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 140 },
     errorBanner: {
       backgroundColor: t.errorBg,

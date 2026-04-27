@@ -60,7 +60,9 @@ function matchKey(name: string): string | undefined {
 // detail screens, which want a chrome-free reading experience). After the
 // structural Stack-per-tab refactor the active tab is just "activity" — the
 // inner stack screen "[id]" is one level deeper.
-const OPT_OUT_ROUTES = new Set<string>(['activity']);
+// Also hidden tabs that use their own header back + full content (ai coach,
+// notifications): avoid the DetailBar + AgentPill from covering text inputs.
+const OPT_OUT_ROUTES = new Set<string>(['activity', 'ai', 'notifications']);
 
 export default function CustomTabBar({ state, navigation }: TabBarProps) {
   const { tokens } = useTheme();

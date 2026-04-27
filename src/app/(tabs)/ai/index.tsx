@@ -15,7 +15,8 @@ import {
   Alert,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { ArrowLeft, Sparkles, Send } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Pencil, Sparkles, Send } from 'lucide-react-native';
 import { router } from 'expo-router';
 import {
   useFeed,
@@ -28,6 +29,7 @@ import {
   useClearTrainingGoalFeedback,
 } from '@/api/hooks';
 import { qk } from '@/api/queryClient';
+import { ApiError } from '@/api/client';
 import { formatMiles, formatRelativeFromUnix } from '@/utils/format';
 import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
 import { useTheme } from '@/theme/ThemeContext';
@@ -67,12 +69,36 @@ export default function AiCoachScreen() {
     if (!pages?.length) return [];
     return [...pages].reverse().flatMap((p) => p.data);
   }, [feedbackQ.data]);
-  const recent = feedQ.data?.data ?? [];
+  // Must not use `?? []` inline — a new array every render would retrigger effects that
+  // depend on `recent` and cause "Maximum update depth exceeded" when the feed is empty.
+  const recent = useMemo(() => feedQ.data?.data ?? [], [feedQ.data]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const bodyScrollRef = useRef<ScrollView>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const goalInputRef = useRef<TextInput>(null);
+  const insets = useSafeAreaInsets();
   const coachChat = useActivityCoachChat();
+  const serverGoal = trainingGoalQ.data?.goal_text?.trim() ?? '';
+
+  const saveTrainingGoal = async () => {
+    const text = goalDraft.trim();
+    if (!text) {
+      Alert.alert('Training goal', 'Enter a goal first.');
+      return;
+    }
+    try {
+      await putGoal.mutateAsync(text);
+    } catch (e: unknown) {
+      const err = e as ApiError | Error;
+      const line =
+        'status' in err && typeof err.status === 'number'
+          ? `${err.message} (${err.status})`
+          : err.message;
+      Alert.alert("Couldn't save goal", line);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -188,13 +214,37 @@ export default function AiCoachScreen() {
         configured on the server.
       </Text>
 
-      <View style={styles.goalSection}>
-        <Text style={styles.sectionTitle}>Training goal</Text>
+      <ScrollView
+        ref={bodyScrollRef}
+        style={styles.bodyScroll}
+        contentContainerStyle={styles.bodyScrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
+        bounces
+      >
+        <View style={styles.goalSection}>
+        <View style={styles.goalTitleRow}>
+          <Text style={styles.sectionTitle}>Training goal</Text>
+          {serverGoal.length > 0 ? (
+            <TouchableOpacity
+              style={styles.goalEditPencil}
+              onPress={() => {
+                requestAnimationFrame(() => goalInputRef.current?.focus());
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Edit training goal"
+            >
+              <Pencil size={18} color={tokens.accentOrange} strokeWidth={2.1} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <Text style={styles.sectionHint}>
           Describe what you are training for in plain language. The server refreshes your interpretation and
           today&apos;s plan after you save (and when new runs sync).
         </Text>
         <TextInput
+          ref={goalInputRef}
           style={styles.goalInput}
           placeholder="e.g. Build to a half marathon in October while staying healthy…"
           placeholderTextColor={tokens.placeholder}
@@ -205,7 +255,7 @@ export default function AiCoachScreen() {
         />
         <TouchableOpacity
           style={[styles.goalSave, putGoal.isPending && { opacity: 0.55 }]}
-          onPress={() => void putGoal.mutateAsync(goalDraft)}
+          onPress={() => void saveTrainingGoal()}
           disabled={putGoal.isPending}
         >
           <Text style={styles.goalSaveText}>{putGoal.isPending ? 'Saving…' : 'Save goal'}</Text>
@@ -323,20 +373,23 @@ export default function AiCoachScreen() {
             ))}
           </View>
         )}
-      </View>
+        </View>
 
-      {feedQ.isLoading ? (
-        <ActivityIndicator color={tokens.accentOrange} style={{ marginTop: 24 }} />
-      ) : recent.length === 0 ? (
-        <Text style={styles.empty}>
-          No recent runs yet. Connect Strava and sync — coach notes are generated from your imported workout
-          telemetry.
-        </Text>
-      ) : (
+        {feedQ.isLoading ? (
+          <ActivityIndicator color={tokens.accentOrange} style={{ marginTop: 24, marginBottom: 24 }} />
+        ) : recent.length === 0 ? (
+          <Text style={styles.empty}>
+            No recent runs yet. Connect Strava and sync — coach notes are generated from your imported workout
+            telemetry.
+          </Text>
+        ) : null}
+      </ScrollView>
+
+      {recent.length > 0 ? (
         <KeyboardAvoidingView
           style={styles.kav}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={8}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
         >
           <ScrollView
             horizontal
@@ -406,7 +459,7 @@ export default function AiCoachScreen() {
             ) : null}
           </ScrollView>
 
-          <View style={styles.composer}>
+          <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
             <TextInput
               style={styles.input}
               placeholder={selectedId ? 'Message your coach…' : 'Pick a run first'}
@@ -431,7 +484,7 @@ export default function AiCoachScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -456,8 +509,10 @@ function makeStyles(t: ThemeTokens) {
       paddingHorizontal: 20,
       marginBottom: 12,
     },
-    empty: { color: t.textMuted, fontSize: 14, marginTop: 12, lineHeight: 20, paddingHorizontal: 20 },
-    kav: { flex: 1 },
+    bodyScroll: { flex: 1 },
+    bodyScrollContent: { paddingBottom: 16, flexGrow: 1 },
+    empty: { color: t.textMuted, fontSize: 14, marginTop: 12, lineHeight: 20, paddingHorizontal: 0 },
+    kav: { maxHeight: '46%', minHeight: 280 },
     chipRow: {
       gap: 8,
       paddingHorizontal: 20,
@@ -498,8 +553,7 @@ function makeStyles(t: ThemeTokens) {
       alignItems: 'flex-end',
       gap: 8,
       paddingHorizontal: 16,
-      paddingVertical: 10,
-      paddingBottom: 24,
+      paddingTop: 10,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: t.border,
       backgroundColor: t.background,
@@ -528,6 +582,16 @@ function makeStyles(t: ThemeTokens) {
     goalSection: {
       paddingHorizontal: 20,
       marginBottom: 16,
+    },
+    goalTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    goalEditPencil: {
+      padding: 6,
+      borderRadius: 8,
     },
     sectionTitle: { color: t.text, fontWeight: '700', fontSize: 15 },
     sectionHint: { color: t.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 6 },
