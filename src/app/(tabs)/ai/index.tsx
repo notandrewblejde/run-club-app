@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { components } from '@/api/schema';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   View,
@@ -22,7 +21,6 @@ import {
   useFeed,
   useActivityCoachChat,
   useTrainingGoal,
-  useTrainingToday,
   usePutTrainingGoal,
   useTrainingGoalFeedbackInfinite,
   usePostTrainingGoalFeedback,
@@ -35,14 +33,14 @@ import { useBottomBarActions } from '@/components/nav/BottomBarActionsContext';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 
-type GoalFeedbackMessage = components['schemas']['GoalFeedbackMessage'];
-
 type ChatRole = 'user' | 'assistant';
 
 interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
+  /** Run-scoped thread vs server-stored training-goal notes (same list; labels differ). */
+  channel: 'run' | 'goal';
 }
 
 function msgId() {
@@ -56,31 +54,34 @@ export default function AiCoachScreen() {
   const { clearActions } = useBottomBarActions();
   const feedQ = useFeed('me');
   const trainingGoalQ = useTrainingGoal();
-  const trainingTodayQ = useTrainingToday();
   const putGoal = usePutTrainingGoal();
   const feedbackQ = useTrainingGoalFeedbackInfinite();
   const postGoalFeedback = usePostTrainingGoalFeedback();
   const clearGoalFeedback = useClearTrainingGoalFeedback();
   const [goalDraft, setGoalDraft] = useState('');
-  const [feedbackDraft, setFeedbackDraft] = useState('');
-  const [feedbackError, setFeedbackError] = useState<string | null>(null);
-  const feedbackRows: GoalFeedbackMessage[] = useMemo(() => {
-    const pages = feedbackQ.data?.pages;
-    if (!pages?.length) return [];
-    return [...pages].reverse().flatMap((p) => p.data);
-  }, [feedbackQ.data]);
   // Must not use `?? []` inline — a new array every render would retrigger effects that
   // depend on `recent` and cause "Maximum update depth exceeded" when the feed is empty.
   const recent = useMemo(() => feedQ.data?.data ?? [], [feedQ.data]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [goalNoteMode, setGoalNoteMode] = useState(false);
   const bodyScrollRef = useRef<ScrollView>(null);
   const scrollRef = useRef<ScrollView>(null);
   const goalInputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
   const coachChat = useActivityCoachChat();
   const serverGoal = trainingGoalQ.data?.goal_text?.trim() ?? '';
+  const canGoalNote = !!trainingGoalQ.data?.goal_text?.trim();
+  const canChatAboutRun = recent.length > 0;
+  const showKav = canChatAboutRun || canGoalNote;
+  const onlyGoalPath = !canChatAboutRun && canGoalNote;
+  const effectiveGoalMode = onlyGoalPath || goalNoteMode;
+  const totalSavedGoalNotes = feedbackQ.data?.pages[0]?.total_count ?? 0;
+
+  useEffect(() => {
+    if (onlyGoalPath) setGoalNoteMode(true);
+  }, [onlyGoalPath]);
 
   const saveTrainingGoal = async () => {
     const text = goalDraft.trim();
@@ -103,7 +104,6 @@ export default function AiCoachScreen() {
   useFocusEffect(
     useCallback(() => {
       clearActions();
-      void qc.invalidateQueries({ queryKey: qk.trainingToday() });
       void qc.invalidateQueries({ queryKey: qk.trainingGoal() });
       void qc.invalidateQueries({ queryKey: qk.trainingGoalFeedbackInfinite() });
       return () => {};
@@ -120,7 +120,9 @@ export default function AiCoachScreen() {
   useEffect(() => {
     if (!selectedId) {
       lastSeededActivityId.current = null;
-      setMessages([]);
+      if (!onlyGoalPath) {
+        setMessages((prev) => prev.filter((m) => m.channel === 'goal'));
+      }
       return;
     }
     const a = recent.find((x) => x.id === selectedId);
@@ -129,10 +131,16 @@ export default function AiCoachScreen() {
     lastSeededActivityId.current = selectedId;
     const stored = a.ai_coach_summary?.trim();
     const opener = stored
-      ? `Here's your saved insight for ${a.name} (${formatMiles(a.distance_miles)} · ${formatRelativeFromUnix(a.start_date)}):\n\n${stored}\n\nAsk a follow-up about this run below.`
+      ? `Here's your saved insight for ${a.name} (${formatMiles(a.distance_miles)} · ${formatRelativeFromUnix(a.start_date)}):\n\n${stored}\n\nAsk a follow-up about this run below, or use Goal note for training-plan context.`
       : `You're chatting about ${a.name} (${formatMiles(a.distance_miles)} · ${formatRelativeFromUnix(a.start_date)}). I don't have a saved coach blurb yet for this one — ask anything about pace, effort, or recovery and I'll use your workout stats.`;
-    setMessages([{ id: msgId(), role: 'assistant', content: opener }]);
-  }, [selectedId, recent]);
+    setMessages((prev) => {
+      const keep = prev.filter((m) => m.channel === 'goal');
+      return [
+        ...keep,
+        { id: msgId(), role: 'assistant', content: opener, channel: 'run' },
+      ];
+    });
+  }, [selectedId, recent, onlyGoalPath]);
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -142,58 +150,96 @@ export default function AiCoachScreen() {
     scrollToBottom();
   }, [messages]);
 
-  const send = async () => {
+  const composerPending = coachChat.isPending || postGoalFeedback.isPending;
+
+  const sendComposer = async () => {
     const text = draft.trim();
-    if (!text || !selectedId) return;
+    if (!text) return;
+    if (effectiveGoalMode) {
+      if (!canGoalNote) {
+        Alert.alert('Training goal', 'Save a training goal first to add goal notes.');
+        return;
+      }
+      Keyboard.dismiss();
+      setDraft('');
+      const userMsg: ChatMessage = { id: msgId(), role: 'user', content: text, channel: 'goal' };
+      setMessages((m) => [...m, userMsg]);
+      try {
+        const res = await postGoalFeedback.mutateAsync(text);
+        const reply = res?.reply ?? 'Saved.';
+        setMessages((m) => [
+          ...m,
+          { id: msgId(), role: 'assistant', content: reply, channel: 'goal' },
+        ]);
+      } catch (e: unknown) {
+        if (__DEV__ && e instanceof ApiError) {
+          console.warn('[AI Coach] goal note', e.message, { status: e.status, code: e.code, type: e.type });
+        }
+        setMessages((m) => [
+          ...m,
+          {
+            id: msgId(),
+            role: 'assistant',
+            content: (e as Error)?.message ?? 'Could not send goal note. Try again.',
+            channel: 'goal',
+          },
+        ]);
+      }
+      return;
+    }
+    if (!selectedId) return;
     Keyboard.dismiss();
     setDraft('');
-    const userMsg: ChatMessage = { id: msgId(), role: 'user', content: text };
+    const userMsg: ChatMessage = { id: msgId(), role: 'user', content: text, channel: 'run' };
     setMessages((m) => [...m, userMsg]);
     try {
       const res = await coachChat.mutateAsync({ activityId: selectedId, message: text });
       const reply = res?.reply ?? 'No reply.';
-      setMessages((m) => [...m, { id: msgId(), role: 'assistant', content: reply }]);
+      setMessages((m) => [
+        ...m,
+        { id: msgId(), role: 'assistant', content: reply, channel: 'run' },
+      ]);
     } catch (e: unknown) {
+      if (__DEV__ && e instanceof ApiError) {
+        console.warn('[AI Coach] run chat', e.message, { status: e.status, code: e.code, type: e.type });
+      } else if (__DEV__ && e instanceof Error) {
+        console.warn('[AI Coach] run chat', e.message);
+      }
       setMessages((m) => [
         ...m,
         {
           id: msgId(),
           role: 'assistant',
           content: (e as Error)?.message ?? 'Something went wrong. Try again.',
+          channel: 'run',
         },
       ]);
     }
   };
 
   const confirmClearFeedback = () => {
-    if (feedbackRows.length === 0) return;
+    if (totalSavedGoalNotes <= 0) return;
     Alert.alert(
-      'Clear goal feedback?',
-      'This removes the saved conversation. Your training goal text stays the same, and we will rebuild the interpretation without these notes.',
+      'Clear saved goal notes?',
+      'This removes stored goal note messages. Your training goal text stays the same, and we will rebuild the interpretation without these notes. Messages on this screen that were goal notes will no longer match the server.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: () => void clearGoalFeedback.mutateAsync(),
+          onPress: () =>
+            void (async () => {
+              try {
+                await clearGoalFeedback.mutateAsync();
+                setMessages((m) => m.filter((x) => x.channel !== 'goal'));
+                void feedbackQ.refetch();
+              } catch {
+                /* Error surfaced by mutation in dev */
+              }
+            })(),
         },
       ],
     );
-  };
-
-  const sendGoalFeedback = async () => {
-    const text = feedbackDraft.trim();
-    if (!text) return;
-    if (!trainingGoalQ.data?.goal_text?.trim()) return;
-    Keyboard.dismiss();
-    setFeedbackError(null);
-    setFeedbackDraft('');
-    try {
-      await postGoalFeedback.mutateAsync(text);
-    } catch (e: unknown) {
-      setFeedbackDraft(text);
-      setFeedbackError((e as Error)?.message ?? 'Could not send feedback');
-    }
   };
 
   return (
@@ -210,8 +256,9 @@ export default function AiCoachScreen() {
       </View>
 
       <Text style={styles.intro}>
-        Choose a recent run, then chat about it. Insights are saved on each activity after sync when AI is
-        configured on the server.
+        Save a training goal, then use the bar below: chat about a synced run, or add goal notes (saved for
+        your next plan refresh). Per-run coach insights are stored on the activity when AI is configured on
+        the server.
       </Text>
 
       <ScrollView
@@ -261,118 +308,24 @@ export default function AiCoachScreen() {
           <Text style={styles.goalSaveText}>{putGoal.isPending ? 'Saving…' : 'Save goal'}</Text>
         </TouchableOpacity>
         <Text style={styles.disclaimer}>Suggestions only—not medical advice.</Text>
-
-        <View style={styles.goalFeedbackHeader}>
-          <Text style={[styles.sectionTitle, { flex: 1 }]}>Goal feedback</Text>
-          {feedbackRows.length > 0 ? (
+        {totalSavedGoalNotes > 0 ? (
+          <View style={styles.goalMetaRow}>
+            <Text style={styles.goalMetaText}>
+              {totalSavedGoalNotes} saved goal note{totalSavedGoalNotes === 1 ? '' : 's'}
+            </Text>
             <TouchableOpacity
               onPress={confirmClearFeedback}
               disabled={clearGoalFeedback.isPending}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Clear goal feedback history"
+              accessibilityLabel="Clear saved goal notes on server"
             >
               <Text style={[styles.clearFeedbackLink, clearGoalFeedback.isPending && { opacity: 0.5 }]}>
-                Clear history
+                Clear
               </Text>
             </TouchableOpacity>
-          ) : null}
-        </View>
-        <Text style={styles.sectionHint}>
-          Clarify or correct how we should read your goal. Messages are stored on the server and included when we
-          rebuild your interpretation and daily plan—they are not a separate persistent Claude &quot;memory&quot;
-          product, just context we pass in on refresh.
-        </Text>
-        {feedbackQ.hasNextPage ? (
-          <TouchableOpacity
-            style={styles.loadOlder}
-            onPress={() => void feedbackQ.fetchNextPage()}
-            disabled={feedbackQ.isFetchingNextPage}
-          >
-            <Text style={styles.loadOlderText}>
-              {feedbackQ.isFetchingNextPage ? 'Loading…' : 'Load older messages'}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-        <ScrollView
-          style={styles.feedbackThread}
-          nestedScrollEnabled
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator
-        >
-          {feedbackQ.isPending && !feedbackQ.data ? (
-            <ActivityIndicator color={tokens.accentOrange} style={{ marginVertical: 12 }} />
-          ) : feedbackRows.length === 0 ? (
-            <Text style={styles.feedbackEmpty}>No notes yet. Save a goal first, then add context here.</Text>
-          ) : (
-            feedbackRows.map((row) => (
-              <View
-                key={row.id}
-                style={[
-                  styles.feedbackBubble,
-                  row.role === 'user' ? styles.feedbackBubbleUser : styles.feedbackBubbleCoach,
-                ]}
-              >
-                <Text
-                  style={row.role === 'user' ? styles.feedbackRoleUser : styles.feedbackRoleCoach}
-                >
-                  {row.role === 'user' ? 'You' : 'Coach'}
-                </Text>
-                <Text style={row.role === 'user' ? styles.feedbackTextUser : styles.feedbackTextCoach}>
-                  {row.content}
-                </Text>
-              </View>
-            ))
-          )}
-        </ScrollView>
-        {feedbackError ? <Text style={styles.feedbackError}>{feedbackError}</Text> : null}
-        <View style={styles.feedbackComposer}>
-          <TextInput
-            style={styles.feedbackInput}
-            placeholder={
-              trainingGoalQ.data?.goal_text?.trim()
-                ? 'e.g. I meant trail half, not road; easy weeks when travel…'
-                : 'Save a training goal above to enable feedback'
-            }
-            placeholderTextColor={tokens.placeholder}
-            value={feedbackDraft}
-            onChangeText={setFeedbackDraft}
-            multiline
-            maxLength={4000}
-            editable={!!trainingGoalQ.data?.goal_text?.trim() && !postGoalFeedback.isPending}
-          />
-          <TouchableOpacity
-            style={[
-              styles.feedbackSend,
-              (!feedbackDraft.trim() ||
-                !trainingGoalQ.data?.goal_text?.trim() ||
-                postGoalFeedback.isPending) && { opacity: 0.45 },
-            ]}
-            onPress={() => void sendGoalFeedback()}
-            disabled={
-              !feedbackDraft.trim() || !trainingGoalQ.data?.goal_text?.trim() || postGoalFeedback.isPending
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Send goal feedback"
-          >
-            <Send size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={[styles.sectionTitle, { marginTop: 18 }]}>Today&apos;s plan</Text>
-        {trainingTodayQ.isLoading ? (
-          <ActivityIndicator color={tokens.accentOrange} style={{ marginTop: 8 }} />
-        ) : (
-          <View style={styles.todayCard}>
-            <Text style={styles.todayHeadline}>{trainingTodayQ.data?.headline}</Text>
-            <Text style={styles.todayPrimary}>{trainingTodayQ.data?.primary_session}</Text>
-            {(trainingTodayQ.data?.bullets ?? []).map((b, i) => (
-              <Text key={`${i}-${String(b).slice(0, 32)}`} style={styles.todayBullet}>
-                • {b}
-              </Text>
-            ))}
           </View>
-        )}
+        ) : null}
         </View>
 
         {feedQ.isLoading ? (
@@ -385,41 +338,46 @@ export default function AiCoachScreen() {
         ) : null}
       </ScrollView>
 
-      {recent.length > 0 ? (
+      {showKav ? (
         <KeyboardAvoidingView
           style={styles.kav}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
         >
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipRow}
-            keyboardShouldPersistTaps="handled"
-          >
-            {recent.slice(0, 12).map((a) => {
-              const on = selectedId === a.id;
-              return (
-                <TouchableOpacity
-                  key={a.id}
-                  onPress={() => setSelectedId(a.id)}
-                  activeOpacity={0.85}
-                  style={[
-                    styles.chip,
-                    { borderColor: on ? tokens.accentOrange : tokens.divider },
-                    on && { backgroundColor: tokens.surfaceElevated },
-                  ]}
-                >
-                  <Text style={[styles.chipName, on && { color: tokens.accentOrange }]} numberOfLines={1}>
-                    {a.name}
-                  </Text>
-                  <Text style={styles.chipMeta} numberOfLines={1}>
-                    {formatMiles(a.distance_miles)} · {formatRelativeFromUnix(a.start_date)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          {canChatAboutRun ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipRow}
+              keyboardShouldPersistTaps="handled"
+            >
+              {recent.slice(0, 12).map((a) => {
+                const on = selectedId === a.id;
+                return (
+                  <TouchableOpacity
+                    key={a.id}
+                    onPress={() => {
+                      setSelectedId(a.id);
+                      setGoalNoteMode(false);
+                    }}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.chip,
+                      { borderColor: on ? tokens.accentOrange : tokens.divider },
+                      on && { backgroundColor: tokens.surfaceElevated },
+                    ]}
+                  >
+                    <Text style={[styles.chipName, on && { color: tokens.accentOrange }]} numberOfLines={1}>
+                      {a.name}
+                    </Text>
+                    <Text style={styles.chipMeta} numberOfLines={1}>
+                      {formatMiles(a.distance_miles)} · {formatRelativeFromUnix(a.start_date)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : null}
 
           <ScrollView
             ref={scrollRef}
@@ -428,57 +386,148 @@ export default function AiCoachScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-            {!selectedId ? (
-              <Text style={styles.hint}>Tap a run above to open the chat thread.</Text>
-            ) : (
-              messages.map((m) => (
-                <View
-                  key={m.id}
-                  style={[
-                    styles.bubbleWrap,
-                    m.role === 'user' ? styles.bubbleWrapUser : styles.bubbleWrapAssistant,
-                  ]}
-                >
-                  <View
+            {onlyGoalPath ? (
+              <Text style={styles.hint}>
+                Add notes about your training goal — they are saved and used when we refresh your
+                interpretation and plan (same text as the old goal-feedback field).
+              </Text>
+            ) : canChatAboutRun && !selectedId && !effectiveGoalMode ? (
+              <Text style={styles.hint}>
+                Tap a run to chat with workout stats
+                {canGoalNote ? ', or use Goal note to refine your plan without picking a run.' : '.'}
+              </Text>
+            ) : canChatAboutRun && !selectedId && effectiveGoalMode ? (
+              <Text style={styles.hint}>
+                Goal note mode: messages shape your next plan. Switch to &quot;This run&quot; after you pick a
+                workout to chat with stats.
+              </Text>
+            ) : null}
+            {messages.map((m) => (
+              <View
+                key={m.id}
+                style={[
+                  styles.bubbleWrap,
+                  m.role === 'user' ? styles.bubbleWrapUser : styles.bubbleWrapAssistant,
+                ]}
+              >
+                {m.channel === 'goal' ? (
+                  <Text
                     style={[
-                      styles.bubble,
-                      m.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant,
+                      styles.channelPill,
+                      m.role === 'user' ? styles.channelPillUser : styles.channelPillAssistant,
                     ]}
                   >
-                    <Text style={m.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextAssistant}>
-                      {m.content}
-                    </Text>
-                  </View>
+                    Training goal
+                  </Text>
+                ) : null}
+                <View
+                  style={[
+                    styles.bubble,
+                    m.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant,
+                  ]}
+                >
+                  <Text style={m.role === 'user' ? styles.bubbleTextUser : styles.bubbleTextAssistant}>
+                    {m.content}
+                  </Text>
                 </View>
-              ))
-            )}
-            {coachChat.isPending ? (
+              </View>
+            ))}
+            {composerPending ? (
               <View style={styles.typing}>
                 <ActivityIndicator size="small" color={tokens.accentOrange} />
               </View>
             ) : null}
           </ScrollView>
 
+          {canChatAboutRun && canGoalNote ? (
+            <View style={styles.modeRow}>
+              <TouchableOpacity
+                onPress={() => setGoalNoteMode(false)}
+                activeOpacity={0.85}
+                style={[
+                  styles.modePill,
+                  { borderColor: !effectiveGoalMode ? tokens.accentOrange : tokens.divider },
+                  !effectiveGoalMode && { backgroundColor: tokens.surfaceElevated },
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !effectiveGoalMode }}
+                accessibilityLabel="This run"
+              >
+                <Text
+                  style={[
+                    styles.modePillText,
+                    !effectiveGoalMode && { color: tokens.accentOrange, fontWeight: '700' },
+                  ]}
+                >
+                  This run
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setGoalNoteMode(true)}
+                activeOpacity={0.85}
+                style={[
+                  styles.modePill,
+                  { borderColor: effectiveGoalMode ? tokens.accentOrange : tokens.divider },
+                  effectiveGoalMode && { backgroundColor: tokens.surfaceElevated },
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: effectiveGoalMode }}
+                accessibilityLabel="Goal note"
+              >
+                <Text
+                  style={[
+                    styles.modePillText,
+                    effectiveGoalMode && { color: tokens.accentOrange, fontWeight: '700' },
+                  ]}
+                >
+                  Goal note
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : onlyGoalPath ? (
+            <Text style={styles.modeOnlyCaption}>Notes apply to your training plan</Text>
+          ) : null}
+
           <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
             <TextInput
               style={styles.input}
-              placeholder={selectedId ? 'Message your coach…' : 'Pick a run first'}
+              placeholder={
+                effectiveGoalMode
+                  ? canGoalNote
+                    ? 'e.g. Road half not trail; back off on travel weeks…'
+                    : 'Save a training goal first'
+                  : selectedId
+                    ? 'Message about this run…'
+                    : 'Pick a run or use Goal note'
+              }
               placeholderTextColor={tokens.placeholder}
               value={draft}
               onChangeText={setDraft}
               multiline
-              maxLength={2000}
-              editable={!!selectedId && !coachChat.isPending}
+              maxLength={effectiveGoalMode ? 4000 : 2000}
+              editable={
+                !composerPending &&
+                (effectiveGoalMode ? canGoalNote : canChatAboutRun && !!selectedId)
+              }
             />
             <TouchableOpacity
               style={[
                 styles.sendBtn,
-                (!draft.trim() || !selectedId || coachChat.isPending) && styles.sendBtnDisabled,
+                (!draft.trim() ||
+                  composerPending ||
+                  (effectiveGoalMode && !canGoalNote) ||
+                  (!effectiveGoalMode && !selectedId)) &&
+                  styles.sendBtnDisabled,
               ]}
-              onPress={() => void send()}
-              disabled={!draft.trim() || !selectedId || coachChat.isPending}
+              onPress={() => void sendComposer()}
+              disabled={
+                !draft.trim() ||
+                composerPending ||
+                (effectiveGoalMode && !canGoalNote) ||
+                (!effectiveGoalMode && !selectedId)
+              }
               accessibilityRole="button"
-              accessibilityLabel="Send message"
+              accessibilityLabel={effectiveGoalMode ? 'Send goal note' : 'Send message about run'}
             >
               <Send size={18} color="#fff" />
             </TouchableOpacity>
@@ -617,85 +666,47 @@ function makeStyles(t: ThemeTokens) {
     },
     goalSaveText: { color: '#fff', fontWeight: '700', fontSize: 14 },
     disclaimer: { color: t.textMuted, fontSize: 11, marginTop: 8 },
-    todayCard: {
-      marginTop: 8,
-      padding: 14,
-      borderRadius: 12,
-      backgroundColor: t.surfaceElevated,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.divider,
-    },
-    todayHeadline: { color: t.text, fontWeight: '700', fontSize: 16 },
-    todayPrimary: { color: t.textSecondary, fontSize: 14, marginTop: 8, lineHeight: 20 },
-    todayBullet: { color: t.textSecondary, fontSize: 14, marginTop: 6, lineHeight: 20 },
-
-    goalFeedbackHeader: {
-      marginTop: 20,
+    goalMetaRow: {
+      marginTop: 10,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: 12,
-    },
-    clearFeedbackLink: { color: t.error, fontSize: 14, fontWeight: '600' },
-    loadOlder: {
-      alignSelf: 'center',
-      marginTop: 4,
-      marginBottom: 4,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-    },
-    loadOlderText: { color: t.accentBlue, fontSize: 14, fontWeight: '600' },
-    feedbackThread: { maxHeight: 220, marginTop: 8 },
-    feedbackEmpty: { color: t.textMuted, fontSize: 13, marginVertical: 8, lineHeight: 18 },
-    feedbackBubble: {
-      maxWidth: '92%',
-      borderRadius: 12,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      marginBottom: 8,
-    },
-    feedbackBubbleUser: {
-      alignSelf: 'flex-end',
-      backgroundColor: t.accentBlue,
-    },
-    feedbackBubbleCoach: {
-      alignSelf: 'flex-start',
-      backgroundColor: t.surfaceElevated,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.divider,
-    },
-    feedbackRoleUser: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.85)', marginBottom: 4 },
-    feedbackRoleCoach: { fontSize: 11, fontWeight: '700', color: t.textMuted, marginBottom: 4 },
-    feedbackTextUser: { fontSize: 14, lineHeight: 20, color: '#fff' },
-    feedbackTextCoach: { fontSize: 14, lineHeight: 20, color: t.text },
-    feedbackError: { color: t.error, fontSize: 13, marginTop: 6 },
-    feedbackComposer: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
       gap: 8,
-      marginTop: 8,
     },
-    feedbackInput: {
-      flex: 1,
-      minHeight: 44,
-      maxHeight: 120,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 15,
-      color: t.text,
-      backgroundColor: t.surfaceElevated,
+    goalMetaText: { color: t.textSecondary, fontSize: 12 },
+    clearFeedbackLink: { color: t.error, fontSize: 14, fontWeight: '600' },
+
+    channelPill: {
+      fontSize: 10,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+      marginBottom: 4,
+    },
+    channelPillUser: { color: t.accentBlue, alignSelf: 'flex-end' },
+    channelPillAssistant: { color: t.textMuted, alignSelf: 'flex-start' },
+
+    modeRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 2,
+      gap: 8,
+    },
+    modePill: {
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 20,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.divider,
-      textAlignVertical: 'top',
+      backgroundColor: t.background,
     },
-    feedbackSend: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: t.accentOrange,
-      alignItems: 'center',
-      justifyContent: 'center',
+    modePillText: { color: t.textSecondary, fontSize: 14 },
+    modeOnlyCaption: {
+      color: t.textMuted,
+      fontSize: 12,
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 2,
     },
   });
 }

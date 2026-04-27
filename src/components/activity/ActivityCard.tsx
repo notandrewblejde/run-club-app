@@ -77,7 +77,12 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
       </View>
 
       {mapUrl ? (
-        <Image source={{ uri: mapUrl }} style={styles.mapThumbnail} resizeMode="cover" />
+        <Image
+          key={`${activity.id}-${mapUrl}`}
+          source={{ uri: mapUrl }}
+          style={styles.mapThumbnail}
+          resizeMode="cover"
+        />
       ) : null}
 
       <View style={styles.footer}>

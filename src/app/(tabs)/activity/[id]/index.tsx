@@ -199,7 +199,12 @@ export default function ActivityDetailScreen() {
         ) : null}
 
         {mapUrl ? (
-          <Image source={{ uri: mapUrl }} style={styles.mapImage} resizeMode="cover" />
+          <Image
+            key={`${activity.id}-${mapUrl}`}
+            source={{ uri: mapUrl }}
+            style={styles.mapImage}
+            resizeMode="cover"
+          />
         ) : (
           <View style={[styles.mapImage, styles.mapPlaceholder]}>
             <Text style={styles.mapPlaceholderText}>No GPS data</Text>
