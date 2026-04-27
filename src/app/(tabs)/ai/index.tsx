@@ -13,10 +13,9 @@ import {
   Keyboard,
   Alert,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Pencil, Sparkles, Send } from 'lucide-react-native';
-import { router } from 'expo-router';
 import {
   useGlobalAiCoachChat,
   useTrainingGoal,
@@ -65,6 +64,7 @@ export default function AiCoachScreen() {
   const goalInputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
   const seededRef = useRef(false);
+  const { from } = useLocalSearchParams<{ from?: string }>();
 
   const serverGoal = trainingGoalQ.data?.goal_text?.trim() ?? '';
   const canGoalNote = !!trainingGoalQ.data?.goal_text?.trim();
@@ -214,10 +214,22 @@ export default function AiCoachScreen() {
     );
   };
 
+  const closeAi = useCallback(() => {
+    if (from === 'feed') {
+      router.replace('/(tabs)/feed');
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/(tabs)/feed');
+  }, [from]);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+        <TouchableOpacity onPress={closeAi} hitSlop={12}>
           <ArrowLeft size={22} color={tokens.text} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
@@ -359,9 +371,9 @@ export default function AiCoachScreen() {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-          style={[styles.kavFooter, { paddingBottom: Math.max(insets.bottom, 10) }]}
+          style={styles.kavFooter}
         >
-          <View style={styles.chatComposer}>
+          <View style={[styles.chatComposer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
             <TextInput
               style={styles.chatInput}
               placeholder="Message your coach…"

@@ -16,6 +16,7 @@ import {
   Pressable,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   Heart,
@@ -60,6 +61,7 @@ function coachMsgId() {
 export default function ActivityDetailScreen() {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
+  const insets = useSafeAreaInsets();
   const { id, from, profileId } = useLocalSearchParams<{
     id: string;
     from?: string;
@@ -243,7 +245,7 @@ export default function ActivityDetailScreen() {
         </Pressable>
       </Modal>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 160 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 220 + Math.max(insets.bottom, 0) }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={closeActivityDetail} hitSlop={12}>
             <ArrowLeft size={22} color={tokens.text} />
@@ -467,7 +469,7 @@ export default function ActivityDetailScreen() {
       </ScrollView>
 
       {!activity.owned_by_viewer || activityTab === 'comments' ? (
-        <View style={styles.composer}>
+        <View style={[styles.composer, { paddingBottom: 28 + Math.max(insets.bottom, 10) }]}>
           <TextInput
             style={styles.input}
             placeholder="Add a comment…"
@@ -485,7 +487,7 @@ export default function ActivityDetailScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.composer}>
+        <View style={[styles.composer, { paddingBottom: 28 + Math.max(insets.bottom, 10) }]}>
           <TextInput
             style={styles.input}
             placeholder="Ask your coach about this run…"

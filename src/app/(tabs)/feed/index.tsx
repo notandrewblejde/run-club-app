@@ -197,7 +197,12 @@ function FeedHomeStrip({
     <View style={styles.stripWrap}>
       <Pressable
         style={({ pressed }) => [styles.stripCard, pressed && { opacity: 0.92 }]}
-        onPress={() => router.push('/(tabs)/ai')}
+        onPress={() =>
+          router.push({
+            pathname: '/(tabs)/ai',
+            params: { from: 'feed' },
+          })
+        }
       >
         <Text style={styles.stripLabel}>Today</Text>
         {trainingLoading ? (

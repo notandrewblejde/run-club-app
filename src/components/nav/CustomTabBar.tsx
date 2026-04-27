@@ -95,6 +95,7 @@ function RootBar({
   styles,
   tokens,
 }: TabBarProps & { styles: Styles; tokens: ThemeTokens }) {
+  const activeTab = matchKey(state.routes[state.index]?.name ?? '');
   const visibleRoutes = state.routes
     .filter((r) => matchKey(r.name))
     .slice()
@@ -140,7 +141,7 @@ function RootBar({
           );
         })}
       </View>
-      <AgentPill styles={styles} tokens={tokens} />
+      <AgentPill styles={styles} tokens={tokens} sourceTab={activeTab} />
     </View>
   );
 }
@@ -275,11 +276,30 @@ function ActionButton({ action, tokens }: { action: BottomBarAction; tokens: The
   );
 }
 
-function AgentPill({ styles, tokens }: { styles: Styles; tokens: ThemeTokens }) {
+function AgentPill({
+  styles,
+  tokens,
+  sourceTab,
+}: {
+  styles: Styles;
+  tokens: ThemeTokens;
+  sourceTab?: string;
+}) {
+  const openAi = () => {
+    if (sourceTab === 'feed') {
+      router.push({
+        pathname: '/(tabs)/ai',
+        params: { from: 'feed' },
+      });
+      return;
+    }
+    router.push('/(tabs)/ai');
+  };
+
   return (
     <Pressable
       style={({ pressed }) => [styles.agentPill, pressed && styles.itemPressed]}
-      onPress={() => router.push('/(tabs)/ai')}
+      onPress={openAi}
       hitSlop={4}
       accessibilityRole="button"
       accessibilityLabel="Open AI coach"
