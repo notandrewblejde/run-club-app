@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import EventSource from 'react-native-sse';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   View,
@@ -15,6 +16,7 @@ import {
   FlatList,
   Pressable,
 } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -101,6 +103,8 @@ export default function ActivityDetailScreen() {
     { id: string; role: 'user' | 'assistant'; content: string }[]
   >([]);
   const [coachDraft, setCoachDraft] = useState('');
+  const [coachStreaming, setCoachStreaming] = useState(false);
+  const coachEsRef = useRef<EventSource | null>(null);
   const coachScrollRef = useRef<ScrollView>(null);
   const coachSeedId = useRef<string | null>(null);
 
@@ -179,28 +183,63 @@ export default function ActivityDetailScreen() {
   };
 
   const sendCoachMessage = async () => {
-    if (!activity.owned_by_viewer || !id) return;
+    if (!activity.owned_by_viewer || !id || coachStreaming) return;
     const text = coachDraft.trim();
     if (!text) return;
     Keyboard.dismiss();
     setCoachDraft('');
     setCoachMessages((m) => [...m, { id: coachMsgId(), role: 'user', content: text }]);
+
+    const assistantId = coachMsgId();
+    setCoachMessages((m) => [...m, { id: assistantId, role: 'assistant', content: '' }]);
+    setCoachStreaming(true);
+
     try {
-      const res = await coachChat.mutateAsync({ activityId: id, message: text });
-      setCoachMessages((m) => [
-        ...m,
-        { id: coachMsgId(), role: 'assistant', content: res?.reply ?? 'No reply.' },
-      ]);
+      const token = await SecureStore.getItemAsync('jwt');
+      const apiBase = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api';
+
+      coachEsRef.current?.close();
+      const es = new EventSource(`${apiBase}/v1/activities/${id}/coach/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: text }),
+        pollingInterval: 0,
+      });
+      coachEsRef.current = es;
+
+      es.addEventListener('message', (e: any) => {
+        const chunk = e.data ?? '';
+        if (!chunk || chunk === '[DONE]') return;
+        setCoachMessages((m) =>
+          m.map((msg) => msg.id === assistantId ? { ...msg, content: msg.content + chunk } : msg)
+        );
+        setTimeout(() => coachScrollRef.current?.scrollToEnd({ animated: true }), 50);
+      });
+
+      es.addEventListener('done', () => {
+        es.close(); coachEsRef.current = null; setCoachStreaming(false);
+      });
+
+      es.addEventListener('error', () => {
+        es.close(); coachEsRef.current = null; setCoachStreaming(false);
+        setCoachMessages((m) =>
+          m.map((msg) => msg.id === assistantId && msg.content === ''
+            ? { ...msg, content: 'Something went wrong. Try again.' } : msg)
+        );
+      });
     } catch (e: unknown) {
-      if (__DEV__ && e instanceof ApiError) {
-        console.warn('[Activity coach]', e.message, e.status);
-      }
-      setCoachMessages((m) => [
-        ...m,
-        { id: coachMsgId(), role: 'assistant', content: (e as Error)?.message ?? 'Something went wrong.' },
-      ]);
+      setCoachStreaming(false);
+      setCoachMessages((m) =>
+        m.map((msg) => msg.id === assistantId && msg.content === ''
+          ? { ...msg, content: (e as Error)?.message ?? 'Something went wrong.' } : msg)
+      );
     }
   };
+
+  useEffect(() => { return () => { coachEsRef.current?.close(); }; }, []);
 
   const openShare = () => {
     if (!clubs.length) {
@@ -458,7 +497,7 @@ export default function ActivityDetailScreen() {
                   </View>
                 </View>
               ))}
-              {coachChat.isPending ? (
+              {coachStreaming ? (
                 <View style={styles.coachTyping}>
                   <ActivityIndicator size="small" color={tokens.accentOrange} />
                 </View>
@@ -496,15 +535,15 @@ export default function ActivityDetailScreen() {
             onChangeText={setCoachDraft}
             multiline
             maxLength={2000}
-            editable={!coachChat.isPending}
+            editable={!coachStreaming}
           />
           <TouchableOpacity
             style={[
               styles.sendBtn,
-              (!coachDraft.trim() || coachChat.isPending) && styles.sendBtnDisabled,
+              (!coachDraft.trim() || coachStreaming) && styles.sendBtnDisabled,
             ]}
             onPress={() => void sendCoachMessage()}
-            disabled={!coachDraft.trim() || coachChat.isPending}
+            disabled={!coachDraft.trim() || coachStreaming}
           >
             <Send size={18} color="#fff" />
           </TouchableOpacity>

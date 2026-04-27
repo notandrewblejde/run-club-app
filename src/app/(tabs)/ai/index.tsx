@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import EventSource from 'react-native-sse';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   View,
@@ -14,6 +15,7 @@ import {
   Alert,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Pencil, Sparkles, Send } from 'lucide-react-native';
 import {
@@ -60,6 +62,9 @@ export default function AiCoachScreen() {
   const [planDraft, setPlanDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatDraft, setChatDraft] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamingIdRef = useRef<string | null>(null);
+  const esRef = useRef<EventSource | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const goalInputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
@@ -160,34 +165,92 @@ export default function AiCoachScreen() {
 
   const sendChat = async () => {
     const text = chatDraft.trim();
-    if (!text) return;
+    if (!text || isStreaming) return;
     Keyboard.dismiss();
     setChatDraft('');
+
+    // Add user message
     setMessages((m) => [...m, { id: msgId(), role: 'user', content: text, source: 'chat' }]);
+
+    // Add empty assistant message that we'll stream into
+    const assistantId = msgId();
+    streamingIdRef.current = assistantId;
+    setMessages((m) => [...m, { id: assistantId, role: 'assistant', content: '', source: 'chat' }]);
+    setIsStreaming(true);
+
     try {
-      const res = await globalCoach.mutateAsync({ message: text });
-      setMessages((m) => [
-        ...m,
-        { id: msgId(), role: 'assistant', content: res?.reply ?? 'No reply.', source: 'chat' },
-      ]);
-    } catch (e: unknown) {
-      if (__DEV__ && e instanceof ApiError) {
-        console.warn('[AI Coach] global', e.message, { status: e.status, code: e.code });
-      }
-      setMessages((m) => [
-        ...m,
-        {
-          id: msgId(),
-          role: 'assistant',
-          content: (e as Error)?.message ?? 'Something went wrong. Try again.',
-          source: 'chat',
+      const token = await SecureStore.getItemAsync('jwt');
+      const apiBase = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api';
+
+      // Close any existing stream
+      esRef.current?.close();
+
+      const es = new EventSource(`${apiBase}/v1/me/ai/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      ]);
+        body: JSON.stringify({ message: text }),
+        pollingInterval: 0,
+      });
+      esRef.current = es;
+
+      es.addEventListener('message', (e: any) => {
+        const chunk = e.data ?? '';
+        if (!chunk || chunk === '[DONE]') return;
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId
+              ? { ...msg, content: msg.content + chunk }
+              : msg
+          )
+        );
+        // Auto-scroll
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+      });
+
+      es.addEventListener('done', () => {
+        es.close();
+        esRef.current = null;
+        setIsStreaming(false);
+        streamingIdRef.current = null;
+      });
+
+      es.addEventListener('error', (e: any) => {
+        es.close();
+        esRef.current = null;
+        setIsStreaming(false);
+        streamingIdRef.current = null;
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId && msg.content === ''
+              ? { ...msg, content: 'Something went wrong. Try again.' }
+              : msg
+          )
+        );
+      });
+
+    } catch (e: unknown) {
+      setIsStreaming(false);
+      streamingIdRef.current = null;
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantId && msg.content === ''
+            ? { ...msg, content: (e as Error)?.message ?? 'Something went wrong.' }
+            : msg
+        )
+      );
     }
   };
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { esRef.current?.close(); };
+  }, []);
+
   const planPending = postGoalFeedback.isPending;
-  const chatPending = globalCoach.isPending;
+  const chatPending = isStreaming;
 
   const confirmClearFeedback = () => {
     if (totalSavedGoalNotes <= 0) return;
