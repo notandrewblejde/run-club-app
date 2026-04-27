@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Pressable } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import * as AuthSession from 'expo-auth-session';
+import { Prompt } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme/ThemeContext';
@@ -16,29 +17,33 @@ const AUTH0_CLIENT_ID = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID || '';
 const AUTH0_AUDIENCE = process.env.EXPO_PUBLIC_AUTH0_AUDIENCE || 'https://api.runclub.app';
 const redirectUri = 'runclub://auth/callback';
 
+const auth0AuthorizeDiscovery = {
+  authorizationEndpoint: `https://${AUTH0_DOMAIN}/authorize`,
+} as const;
+
 export default function LoginScreen() {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const login = useAuthStore((state) => state.login);
   const [loading, setLoading] = useState(false);
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
+  const baseAuthConfig = useMemo(
+    () => ({
       clientId: AUTH0_CLIENT_ID,
       scopes: ['openid', 'profile', 'email'],
       redirectUri,
       extraParams: { audience: AUTH0_AUDIENCE },
-    },
-    { authorizationEndpoint: `https://${AUTH0_DOMAIN}/authorize` }
+    }),
+    []
   );
 
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { code } = response.params;
-      handleAuthSuccess(code);
-    }
-  }, [response]);
+  const [request, response, promptAsync] = AuthSession.useAuthRequest(baseAuthConfig, auth0AuthorizeDiscovery);
+  /** Forces Universal Login again so users can pick another Auth0 identity / connection. */
+  const [reloginRequest, reloginResponse, promptReloginAsync] = AuthSession.useAuthRequest(
+    { ...baseAuthConfig, prompt: Prompt.Login },
+    auth0AuthorizeDiscovery
+  );
 
-  const handleAuthSuccess = async (code: string) => {
+  const handleAuthSuccess = useCallback(async (code: string, authRequest: AuthSession.AuthRequest | null) => {
     try {
       setLoading(true);
       const tokenResponse = await AuthSession.exchangeCodeAsync(
@@ -48,8 +53,8 @@ export default function LoginScreen() {
           redirectUri,
           // PKCE: useAuthRequest sent a code_challenge derived from this verifier;
           // Auth0 rejects the exchange if we don't echo it back.
-          extraParams: request?.codeVerifier
-            ? { code_verifier: request.codeVerifier }
+          extraParams: authRequest?.codeVerifier
+            ? { code_verifier: authRequest.codeVerifier }
             : undefined,
         },
         { tokenEndpoint: `https://${AUTH0_DOMAIN}/oauth/token` }
@@ -65,7 +70,21 @@ export default function LoginScreen() {
       console.error('Auth error:', error);
       setLoading(false);
     }
-  };
+  }, [login]);
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { code } = response.params;
+      void handleAuthSuccess(code, request);
+    }
+  }, [response, request, handleAuthSuccess]);
+
+  useEffect(() => {
+    if (reloginResponse?.type === 'success') {
+      const { code } = reloginResponse.params;
+      void handleAuthSuccess(code, reloginRequest);
+    }
+  }, [reloginResponse, reloginRequest, handleAuthSuccess]);
 
   return (
     <View style={styles.container}>
@@ -79,14 +98,18 @@ export default function LoginScreen() {
           <>
             <TouchableOpacity
               style={styles.button}
-              onPress={() => promptAsync()}
+              onPress={() => void promptAsync()}
               disabled={!request}
             >
               <Text style={styles.primaryButtonText}>Continue with Auth0</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.socialButtonText}>Sign in with Google</Text>
-            </TouchableOpacity>
+            <Pressable
+              onPress={() => void promptReloginAsync()}
+              disabled={!reloginRequest}
+              style={({ pressed }) => [styles.altAccountPressable, pressed && styles.altAccountPressed]}
+            >
+              <Text style={styles.altAccountText}>Use a different account</Text>
+            </Pressable>
           </>
         )}
       </View>
@@ -113,18 +136,19 @@ function makeStyles(t: ThemeTokens) {
       width: '100%',
       alignItems: 'center',
     },
-    socialButton: {
-      backgroundColor: t.surfaceElevated,
-      paddingVertical: 12,
-      paddingHorizontal: 32,
-      borderRadius: 8,
-      width: '100%',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: t.border,
-    },
     primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-    socialButtonText: { color: t.text, fontSize: 16, fontWeight: '600' },
+    altAccountPressable: {
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      alignSelf: 'center',
+    },
+    altAccountPressed: { opacity: 0.65 },
+    altAccountText: {
+      color: t.accentBlue,
+      fontSize: 15,
+      fontWeight: '500',
+      textDecorationLine: 'underline',
+    },
     loader: { marginVertical: 20 },
   });
 }
