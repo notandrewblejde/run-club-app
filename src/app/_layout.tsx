@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { BottomBarActionsProvider } from '@/components/nav/BottomBarActionsContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ThemeProvider, useTheme } from '@/theme/ThemeContext';
+import { useAppleHealthBackgroundSync } from '@/health/useAppleHealthBackgroundSync';
 
 export default function RootLayout() {
   const restoreAuth = useAuthStore((s) => s.restoreAuth);
@@ -20,6 +21,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
+          <AppleHealthSyncBridge />
           <BottomBarActionsProvider>
             <ThemedShell />
           </BottomBarActionsProvider>
@@ -27,6 +29,11 @@ export default function RootLayout() {
       </ThemeProvider>
     </ErrorBoundary>
   );
+}
+
+function AppleHealthSyncBridge() {
+  useAppleHealthBackgroundSync();
+  return null;
 }
 
 function ThemedShell() {

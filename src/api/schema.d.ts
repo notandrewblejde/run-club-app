@@ -433,6 +433,22 @@ export interface paths {
       };
     };
   };
+  '/v1/me/activities/health-import': {
+    post: {
+      requestBody: {
+        content: {
+          'application/json': { workouts: components['schemas']['HealthWorkoutImportItem'][] };
+        };
+      };
+      responses: {
+        200: {
+          content: {
+            'application/json': { imported: number; skipped: number };
+          };
+        };
+      };
+    };
+  };
   '/v1/me/training-goal': {
     get: {
       responses: {
@@ -584,10 +600,21 @@ export interface components {
       follow_status: 'self' | 'none' | 'pending' | 'accepted';
       stats: components['schemas']['UserStats'];
     };
+    HealthWorkoutImportItem: {
+      import_source: 'apple_health' | 'health_connect';
+      external_id: string;
+      name: string;
+      start_date_epoch_seconds: number;
+      distance_meters?: number;
+      moving_time_secs?: number;
+      map_polyline?: string;
+    };
     Activity: {
       object: 'activity';
       id: string;
       strava_id?: number;
+      import_source?: string;
+      import_external_id?: string;
       user?: components['schemas']['User'];
       name: string;
       sport_type?: string;

@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -35,8 +36,10 @@ import {
   useDisconnectStrava,
   useFollowRequests,
   useMe,
+  usePostHealthWorkoutImport,
   useTriggerStravaSync,
 } from '@/api/hooks';
+import collectRunsForImport from '@/health/collectRuns';
 import { formatDuration, formatMiles } from '@/utils/format';
 import { useTheme, type AppearancePreference } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
@@ -58,9 +61,11 @@ export default function ProfileScreen() {
   const meQ = useMe();
   const sync = useTriggerStravaSync();
   const disconnect = useDisconnectStrava();
+  const healthImport = usePostHealthWorkoutImport();
   const requestsQ = useFollowRequests();
   const pendingCount = requestsQ.data?.data?.length ?? 0;
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [healthImporting, setHealthImporting] = useState(false);
 
   if (meQ.isLoading && !meQ.data) {
     return (
@@ -108,6 +113,26 @@ export default function ProfileScreen() {
       `${name} (coming soon)`,
       'This source is not wired up yet. When it is, you will connect it here the same way as Strava.',
     );
+  };
+
+  const handleImportFromDeviceHealth = async () => {
+    try {
+      setHealthImporting(true);
+      const workouts = await collectRunsForImport();
+      if (!workouts.length) {
+        Alert.alert(
+          'No runs found',
+          'No running workouts in the last ~90 days, or permission was denied. On Android, install the Health Connect app if prompted.',
+        );
+        return;
+      }
+      const r = await healthImport.mutateAsync(workouts);
+      Alert.alert('Import complete', `Imported ${r.imported} run(s). Skipped: ${r.skipped}.`);
+    } catch (e: unknown) {
+      Alert.alert('Import failed', (e as Error)?.message ?? 'Try again later');
+    } finally {
+      setHealthImporting(false);
+    }
   };
 
   const currentAppearance = APPEARANCE_OPTIONS.find((o) => o.key === preference);
@@ -260,26 +285,44 @@ export default function ProfileScreen() {
               <ChevronRight size={16} color="rgba(255,255,255,0.9)" />
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => showIntegrationSoon('Apple Health')}
-            activeOpacity={0.7}
-          >
-            <HeartPulse size={16} color={tokens.text} />
-            <Text style={[styles.rowText, { marginLeft: 10 }]}>Apple Health</Text>
-            <Text style={[styles.rowMuted, { marginRight: 6 }]}>Coming soon</Text>
-            <ChevronRight size={16} color={tokens.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => showIntegrationSoon('Google Fit')}
-            activeOpacity={0.7}
-          >
-            <Footprints size={16} color={tokens.text} />
-            <Text style={[styles.rowText, { marginLeft: 10 }]}>Google Fit</Text>
-            <Text style={[styles.rowMuted, { marginRight: 6 }]}>Coming soon</Text>
-            <ChevronRight size={16} color={tokens.textMuted} />
-          </TouchableOpacity>
+          {Platform.OS === 'ios' ? (
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => void handleImportFromDeviceHealth()}
+              disabled={healthImporting}
+              activeOpacity={0.7}
+            >
+              <HeartPulse size={16} color={tokens.aiAccent} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.rowText}>Apple Health</Text>
+                <Text style={styles.rowMuted}>Import runs (e.g. Nike → Health) · last ~90 days</Text>
+              </View>
+              {healthImporting ? (
+                <ActivityIndicator color={tokens.accentBlue} />
+              ) : (
+                <ChevronRight size={16} color={tokens.textMuted} />
+              )}
+            </TouchableOpacity>
+          ) : null}
+          {Platform.OS === 'android' ? (
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => void handleImportFromDeviceHealth()}
+              disabled={healthImporting}
+              activeOpacity={0.7}
+            >
+              <Footprints size={16} color={tokens.aiAccent} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.rowText}>Health Connect</Text>
+                <Text style={styles.rowMuted}>Google Health Connect · import runs from the last ~90 days</Text>
+              </View>
+              {healthImporting ? (
+                <ActivityIndicator color={tokens.accentBlue} />
+              ) : (
+                <ChevronRight size={16} color={tokens.textMuted} />
+              )}
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
             style={styles.row}
             onPress={() => showIntegrationSoon('Garmin Connect')}

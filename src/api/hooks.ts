@@ -79,6 +79,21 @@ export function usePutTrainingGoal() {
   });
 }
 
+type HealthWorkoutImportItem = components['schemas']['HealthWorkoutImportItem'];
+
+export function usePostHealthWorkoutImport() {
+  const qc = useQueryClient();
+  return useMutation<{ imported: number; skipped: number }, Error, HealthWorkoutImportItem[]>({
+    mutationFn: async (workouts) =>
+      unwrap(api.POST('/v1/me/activities/health-import', { body: { workouts } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.activities('me') });
+      void qc.invalidateQueries({ queryKey: qk.activities('following') });
+      void qc.invalidateQueries({ queryKey: qk.me() });
+    },
+  });
+}
+
 /**
  * Paged from newest: page 1 = most recent messages. Use {@link getNextPageParam} to load older blocks.
  */

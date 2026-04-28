@@ -15,7 +15,10 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.runclub",
-      "buildNumber": "13",
+      "buildNumber": "15",
+      "entitlements": {
+        "com.apple.developer.healthkit.background-delivery": true
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": [
@@ -29,7 +32,7 @@
         "backgroundColor": "#0F0F0F"
       },
       "package": "app.runclub",
-      "versionCode": 13
+      "versionCode": 15
     },
     "plugins": [
       "expo-router",
@@ -43,7 +46,23 @@
           "cameraPermission": "Run Club uses the camera when you choose to take a new profile photo."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      [
+        "react-native-health/app.plugin.js",
+        {
+          "healthSharePermission": "Run Club reads running workouts from Apple Health (for example runs logged with Nike Run Club) so they can appear in your feed and inform coaching.",
+          "healthUpdatePermission": "Run Club does not write workout data to Apple Health."
+        }
+      ],
+      "react-native-health-connect"
     ],
     "extra": {
       "eas": {

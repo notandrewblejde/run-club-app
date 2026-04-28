@@ -1,7 +1,9 @@
 #import "AppDelegate.h"
 
+#import <React/RCTBridge.h>
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
+#import "RCTAppleHealthKit.h"
 
 @implementation AppDelegate
 
@@ -13,7 +15,22 @@
   // They will be passed down to the ViewController used by React Native.
   self.initialProps = @{};
 
-  return [super application:application didFinishLaunchingWithOptions:launchOptions];
+  BOOL ok = [super application:application didFinishLaunchingWithOptions:launchOptions];
+
+  // HealthKit observer queries + background delivery (react-native-health).
+  RCTBridge *bridge = self.bridge;
+  if (bridge != nil) {
+    [[RCTAppleHealthKit allocWithZone:NULL] initializeBackgroundObservers:bridge];
+  } else {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      RCTBridge *retryBridge = self.bridge;
+      if (retryBridge != nil) {
+        [[RCTAppleHealthKit allocWithZone:NULL] initializeBackgroundObservers:retryBridge];
+      }
+    });
+  }
+
+  return ok;
 }
 
 - (NSURL *)sourceURLForBridge:(RCTBridge *)bridge
