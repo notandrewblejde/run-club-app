@@ -110,6 +110,7 @@ export default function ActivityDetailScreen() {
   const [coachStreaming, setCoachStreaming] = useState(false);
   const coachEsRef = useRef<EventSource | null>(null);
   const coachScrollRef = useRef<ScrollView>(null);
+  const commentsRef = useRef<View>(null);
   const mainScrollRef = useRef<ScrollView>(null);
   const coachSeedId = useRef<string | null>(null);
 
@@ -367,23 +368,28 @@ export default function ActivityDetailScreen() {
           </View>
         )}
 
-        {showCoachTake ? (
-          <View style={styles.coachTakeCard}>
-            <View style={styles.coachTakeHeader}>
-              <Sparkles size={14} color={tokens.aiAccent} />
-              <Text style={styles.coachTakeTitle}>{`Coach's take`}</Text>
-            </View>
-            {coachTakeLoading ? (
-              <ActivityIndicator
-                size="small"
-                color={tokens.aiAccent}
-                style={styles.coachTakeLoading}
-              />
-            ) : (
-              <Text style={styles.coachTakeBody}>{firstTwoSentences(coachTakeRaw)}</Text>
-            )}
-          </View>
-        ) : null}
+        <View style={styles.engagementRow}>
+          <TouchableOpacity style={styles.engagementBtn} onPress={() => toggleKudo.mutate()}>
+            <Heart
+              size={20}
+              color={activity.kudoed_by_viewer ? tokens.accentOrange : tokens.textSecondary}
+              fill={activity.kudoed_by_viewer ? tokens.accentOrange : 'transparent'}
+            />
+            <Text style={styles.engagementCount}>{activity.kudos_count}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.engagementBtn}
+            onPress={() => {
+              setActivityTab('comments');
+              commentsRef.current?.measureInWindow((x, y) => {
+                mainScrollRef.current?.scrollTo({ y: y, animated: true });
+              });
+            }}
+          >
+            <MessageCircle size={20} color={tokens.textSecondary} />
+            <Text style={styles.engagementCount}>{activity.comment_count}</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.statGrid}>
           <Stat label="Distance" value={formatMiles(activity.distance_miles)} styles={styles} />
@@ -418,21 +424,28 @@ export default function ActivityDetailScreen() {
           </ScrollView>
         ) : null}
 
-        <View style={styles.engagementRow}>
-          <TouchableOpacity style={styles.engagementBtn} onPress={() => toggleKudo.mutate()}>
-            <Heart
-              size={20}
-              color={activity.kudoed_by_viewer ? tokens.accentOrange : tokens.textSecondary}
-              fill={activity.kudoed_by_viewer ? tokens.accentOrange : 'transparent'}
-            />
-            <Text style={styles.engagementCount}>{activity.kudos_count}</Text>
-          </TouchableOpacity>
-          <View style={styles.engagementBtn}>
-            <MessageCircle size={20} color={tokens.textSecondary} />
-            <Text style={styles.engagementCount}>{activity.comment_count}</Text>
-          </View>
-        </View>
 
+
+        {showCoachTake ? (
+          <View style={styles.coachTakeCard}>
+            <View style={styles.coachTakeHeader}>
+              <Sparkles size={14} color={tokens.aiAccent} />
+              <Text style={styles.coachTakeTitle}>{`Coach's take`}</Text>
+            </View>
+            {coachTakeLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={tokens.aiAccent}
+                style={styles.coachTakeLoading}
+              />
+            ) : (
+              <Text style={styles.coachTakeBody}>{firstTwoSentences(coachTakeRaw)}</Text>
+            )}
+          </View>
+        ) : null}
+
+        <View ref={commentsRef}>
+        </View>
         {activity.owned_by_viewer ? (
           <View style={styles.tabBar}>
             <TouchableOpacity
