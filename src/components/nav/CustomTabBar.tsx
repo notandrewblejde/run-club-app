@@ -304,7 +304,7 @@ function AgentPill({
       accessibilityRole="button"
       accessibilityLabel="Open AI coach"
     >
-      <MaterialCommunityIcons name="creation" size={22} color={tokens.text} />
+      <MaterialCommunityIcons name="creation" size={22} color={tokens.aiAccent} />
     </Pressable>
   );
 }

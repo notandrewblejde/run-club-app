@@ -65,7 +65,7 @@ export default function LoginScreen() {
         idToken: tokenResponse.idToken || '',
       });
 
-      router.replace('/(tabs)/strava-connect');
+      router.replace('/(tabs)/onboarding');
     } catch (error) {
       console.error('Auth error:', error);
       setLoading(false);

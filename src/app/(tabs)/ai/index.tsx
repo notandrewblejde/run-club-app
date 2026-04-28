@@ -297,7 +297,7 @@ export default function AiCoachScreen() {
           <ArrowLeft size={22} color={tokens.text} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Sparkles size={18} color={tokens.accentOrange} />
+          <Sparkles size={18} color={tokens.aiAccent} />
           <Text style={styles.headerText}>AI Coach</Text>
         </View>
         <View style={{ width: 22 }} />
@@ -329,7 +329,7 @@ export default function AiCoachScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Edit training goal"
                 >
-                  <Pencil size={18} color={tokens.accentOrange} strokeWidth={2.1} />
+                  <Pencil size={18} color={tokens.aiAccent} strokeWidth={2.1} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -434,7 +434,7 @@ export default function AiCoachScreen() {
           ))}
           {planPending || chatPending ? (
             <View style={styles.typing}>
-              <ActivityIndicator size="small" color={tokens.accentOrange} />
+              <ActivityIndicator size="small" color={tokens.aiAccent} />
             </View>
           ) : null}
         </ScrollView>
@@ -523,7 +523,7 @@ function makeStyles(t: ThemeTokens) {
     goalSave: {
       marginTop: 10,
       alignSelf: 'flex-start',
-      backgroundColor: t.accentOrange,
+      backgroundColor: t.aiAccent,
       paddingHorizontal: 18,
       paddingVertical: 10,
       borderRadius: 20,
@@ -564,7 +564,7 @@ function makeStyles(t: ThemeTokens) {
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: t.accentOrange,
+      backgroundColor: t.aiAccent,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -623,7 +623,7 @@ function makeStyles(t: ThemeTokens) {
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: t.accentOrange,
+      backgroundColor: t.aiAccent,
       alignItems: 'center',
       justifyContent: 'center',
     },

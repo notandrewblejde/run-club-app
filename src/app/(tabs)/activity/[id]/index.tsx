@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   TextInput,
   Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
   Modal,
   FlatList,
@@ -60,6 +62,9 @@ function coachMsgId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** Space so the composer clears the floating DetailBar (back + agent pill, ~52px + ~28 offset). */
+const DETAIL_BAR_BOTTOM_CLEARANCE = 82;
+
 export default function ActivityDetailScreen() {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
@@ -105,7 +110,12 @@ export default function ActivityDetailScreen() {
   const [coachStreaming, setCoachStreaming] = useState(false);
   const coachEsRef = useRef<EventSource | null>(null);
   const coachScrollRef = useRef<ScrollView>(null);
+  const mainScrollRef = useRef<ScrollView>(null);
   const coachSeedId = useRef<string | null>(null);
+
+  const scrollMainTowardComposer = useCallback(() => {
+    requestAnimationFrame(() => mainScrollRef.current?.scrollToEnd({ animated: true }));
+  }, []);
 
   useEffect(() => {
     setActivityTab('comments');
@@ -262,7 +272,11 @@ export default function ActivityDetailScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
+    >
       <Modal visible={shareOpen} animationType="slide" transparent>
         <Pressable style={styles.modalBackdrop} onPress={() => setShareOpen(false)}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
@@ -288,7 +302,13 @@ export default function ActivityDetailScreen() {
         </Pressable>
       </Modal>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 220 + Math.max(insets.bottom, 0) }}>
+      <ScrollView
+        ref={mainScrollRef}
+        style={styles.mainScroll}
+        contentContainerStyle={styles.mainScrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+      >
         <View style={styles.header}>
           <TouchableOpacity onPress={closeActivityDetail} hitSlop={12}>
             <ArrowLeft size={22} color={tokens.text} />
@@ -350,13 +370,13 @@ export default function ActivityDetailScreen() {
         {showCoachTake ? (
           <View style={styles.coachTakeCard}>
             <View style={styles.coachTakeHeader}>
-              <Sparkles size={14} color={tokens.accentOrange} />
+              <Sparkles size={14} color={tokens.aiAccent} />
               <Text style={styles.coachTakeTitle}>{`Coach's take`}</Text>
             </View>
             {coachTakeLoading ? (
               <ActivityIndicator
                 size="small"
-                color={tokens.accentOrange}
+                color={tokens.aiAccent}
                 style={styles.coachTakeLoading}
               />
             ) : (
@@ -508,7 +528,7 @@ export default function ActivityDetailScreen() {
               ))}
               {coachStreaming ? (
                 <View style={styles.coachTyping}>
-                  <ActivityIndicator size="small" color={tokens.accentOrange} />
+                  <ActivityIndicator size="small" color={tokens.aiAccent} />
                 </View>
               ) : null}
             </ScrollView>
@@ -517,7 +537,15 @@ export default function ActivityDetailScreen() {
       </ScrollView>
 
       {!activity.owned_by_viewer || activityTab === 'comments' ? (
-        <View style={[styles.composer, { paddingBottom: 28 + Math.max(insets.bottom, 10) }]}>
+        <View
+          style={[
+            styles.composer,
+            {
+              paddingBottom: 12 + Math.max(insets.bottom, 8),
+              marginBottom: DETAIL_BAR_BOTTOM_CLEARANCE,
+            },
+          ]}
+        >
           <TextInput
             style={styles.input}
             placeholder="Add a comment…"
@@ -525,6 +553,7 @@ export default function ActivityDetailScreen() {
             value={draft}
             onChangeText={setDraft}
             multiline
+            onFocus={scrollMainTowardComposer}
           />
           <TouchableOpacity
             style={[styles.sendBtn, (!draft.trim() || addComment.isPending) && styles.sendBtnDisabled]}
@@ -535,7 +564,15 @@ export default function ActivityDetailScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={[styles.composer, { paddingBottom: 28 + Math.max(insets.bottom, 10) }]}>
+        <View
+          style={[
+            styles.composer,
+            {
+              paddingBottom: 12 + Math.max(insets.bottom, 8),
+              marginBottom: DETAIL_BAR_BOTTOM_CLEARANCE,
+            },
+          ]}
+        >
           <TextInput
             style={styles.input}
             placeholder="Ask your coach about this run…"
@@ -545,6 +582,7 @@ export default function ActivityDetailScreen() {
             multiline
             maxLength={2000}
             editable={!coachStreaming}
+            onFocus={scrollMainTowardComposer}
           />
           <TouchableOpacity
             style={[
@@ -558,7 +596,7 @@ export default function ActivityDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -582,6 +620,8 @@ function Stat({
 function makeStyles(t: ThemeTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.background },
+    mainScroll: { flex: 1 },
+    mainScrollContent: { paddingBottom: 16 },
     center: { alignItems: 'center', justifyContent: 'center' },
     errorText: { color: t.textSecondary },
     header: {
@@ -639,7 +679,7 @@ function makeStyles(t: ThemeTokens) {
       borderRadius: 12,
       backgroundColor: t.surfaceElevated,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: t.accentOrange,
+      borderColor: t.aiAccent,
     },
     coachTakeHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
     coachTakeTitle: { color: t.text, fontWeight: '700', fontSize: 12, letterSpacing: 0.2 },
@@ -687,7 +727,7 @@ function makeStyles(t: ThemeTokens) {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: t.accentOrange,
+      backgroundColor: t.aiAccent,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -764,17 +804,13 @@ function makeStyles(t: ThemeTokens) {
     commentName: { color: t.text, fontWeight: '600', fontSize: 13 },
     commentContent: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
     composer: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
       flexDirection: 'row',
       alignItems: 'flex-end',
       backgroundColor: t.background,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: t.border,
-      padding: 12,
-      paddingBottom: 28,
+      paddingHorizontal: 12,
+      paddingTop: 10,
       gap: 8,
     },
     input: {

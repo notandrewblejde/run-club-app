@@ -2,8 +2,8 @@
  * Color tokens for light + dark themes.
  *
  * Goal: every screen consumes named tokens (e.g. `tokens.surface`) so a single
- * preference flip swaps the whole UI. Brand accents are intentionally shared
- * across modes so an orange CTA stays orange in both.
+ * preference flip swaps the whole UI. Strava-adjacent warmth uses `accentOrange`
+ * (e.g. kudos); coach / global AI use `aiAccent` (blue, distinct from Strava).
  */
 
 export type ThemeMode = 'light' | 'dark';
@@ -31,6 +31,8 @@ export interface ThemeTokens {
 
   // Brand accents — same in both modes.
   accentBlue: string;
+  /** Coach + global AI Coach (headers, CTAs, summaries) — blue, not Strava orange. */
+  aiAccent: string;
   accentOrange: string;
   accentYellow: string;
   stravaOrange: string;
@@ -76,6 +78,7 @@ export const darkTokens: ThemeTokens = {
   placeholder: 'rgba(255,255,255,0.38)',
 
   accentBlue: '#00A3E0',
+  aiAccent: '#00A3E0',
   accentOrange: '#FF6B35',
   accentYellow: '#FFD24A',
   stravaOrange: '#FC4C02',
@@ -116,6 +119,7 @@ export const lightTokens: ThemeTokens = {
   placeholder: 'rgba(15,15,15,0.38)',
 
   accentBlue: '#0095CC',
+  aiAccent: '#0095CC',
   accentOrange: '#FF6B35',
   accentYellow: '#E6B800',
   stravaOrange: '#FC4C02',
