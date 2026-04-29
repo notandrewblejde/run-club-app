@@ -2,7 +2,7 @@
   "expo": {
     "name": "Run Club",
     "slug": "run-club",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "scheme": "runclub",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.runclub",
-      "buildNumber": "17",
+      "buildNumber": "20",
       "entitlements": {
         "com.apple.developer.healthkit.background-delivery": true
       },
@@ -35,7 +35,7 @@
         "backgroundColor": "#0F0F0F"
       },
       "package": "app.runclub",
-      "versionCode": 17,
+      "versionCode": 20,
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]
