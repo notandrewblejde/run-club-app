@@ -35,7 +35,7 @@ async function registerForPushNotifications() {
 
   try {
     const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: 'run-club', // matches app.json
+      projectId: '856ca734-4ff9-4980-9f31-566451e77397',
     })
     const token = tokenData.data
 
