@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  Switch,
   TouchableOpacity,
   ActivityIndicator,
   Image,
@@ -30,6 +31,7 @@ import {
   HeartPulse,
   Watch,
   Footprints,
+  Bell,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
@@ -38,6 +40,8 @@ import {
   useMe,
   usePostHealthWorkoutImport,
   useTriggerStravaSync,
+  usePushPrefs,
+  useUpdatePushPrefs,
 } from '@/api/hooks';
 import collectRunsForImport from '@/health/collectRuns';
 import { formatDuration, formatMiles } from '@/utils/format';
@@ -62,6 +66,8 @@ export default function ProfileScreen() {
   const sync = useTriggerStravaSync();
   const disconnect = useDisconnectStrava();
   const healthImport = usePostHealthWorkoutImport();
+  const pushPrefsQ = usePushPrefs();
+  const updatePushPrefs = useUpdatePushPrefs();
   const requestsQ = useFollowRequests();
   const pendingCount = requestsQ.data?.data?.length ?? 0;
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -255,6 +261,32 @@ export default function ProfileScreen() {
             </Text>
             <ChevronDown size={16} color={tokens.textMuted} />
           </TouchableOpacity>
+        </View>
+
+        {/* Notification Preferences */}
+        <View style={styles.section}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Bell size={15} color={tokens.text} />
+            <Text style={styles.sectionTitle}>Notifications</Text>
+          </View>
+          {([
+            { key: 'club_activity_alerts', label: 'Club activity', desc: 'When a member logs a run' },
+            { key: 'daily_coach_tip', label: 'Daily coach tip', desc: '8am training recommendation' },
+            { key: 'goal_progress', label: 'Goal milestones', desc: 'Club goal progress updates' },
+          ] as const).map(({ key, label, desc }) => (
+            <View key={key} style={[styles.row, { justifyContent: 'space-between', alignItems: 'center' }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowText}>{label}</Text>
+                <Text style={[styles.rowMuted, { fontSize: 11, marginTop: 1 }]}>{desc}</Text>
+              </View>
+              <Switch
+                value={pushPrefsQ.data?.[key] ?? true}
+                onValueChange={(v) => updatePushPrefs.mutate({ [key]: v })}
+                trackColor={{ false: tokens.border, true: tokens.accentBlue }}
+                thumbColor={tokens.background}
+              />
+            </View>
+          ))}
         </View>
 
         <View style={styles.section}>
