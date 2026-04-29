@@ -27,9 +27,11 @@
     "expo-auth-session": "~6.0.0",
     "expo-blur": "~14.0.1",
     "expo-constants": "~17.0.8",
+    "expo-device": "~7.0.3",
     "expo-font": "~13.0.4",
     "expo-image-picker": "~16.0.6",
     "expo-modules-core": "~2.2.3",
+    "expo-notifications": "~0.29.14",
     "expo-router": "~4.0.0",
     "expo-secure-store": "~14.0.1",
     "expo-status-bar": "~2.0.1",
@@ -45,9 +47,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-sse": "^1.1.0",
     "react-native-svg": "15.8.0",
-    "zustand": "^5.0.1",
-    "expo-notifications": "~0.28.0",
-    "expo-device": "~7.0.0"
+    "zustand": "^5.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

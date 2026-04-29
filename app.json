@@ -35,7 +35,10 @@
         "backgroundColor": "#0F0F0F"
       },
       "package": "app.runclub",
-      "versionCode": 17
+      "versionCode": 17,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -77,8 +80,12 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "REPLACE_AFTER_FIRST_EAS_BUILD"
+        "projectId": "856ca734-4ff9-4980-9f31-566451e77397"
+      },
+      "router": {
+        "origin": false
       }
-    }
+    },
+    "owner": "andrewblejde"
   }
 }
