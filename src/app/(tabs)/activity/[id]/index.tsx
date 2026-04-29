@@ -276,7 +276,7 @@ export default function ActivityDetailScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
       <Modal visible={shareOpen} animationType="slide" transparent>
         <Pressable style={styles.modalBackdrop} onPress={() => setShareOpen(false)}>
@@ -633,7 +633,7 @@ function Stat({
 function makeStyles(t: ThemeTokens) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.background },
-    mainScroll: { flex: 1 },
+    mainScroll: { flex: 1, minHeight: 0 },
     mainScrollContent: { paddingBottom: 16 },
     center: { alignItems: 'center', justifyContent: 'center' },
     errorText: { color: t.textSecondary },

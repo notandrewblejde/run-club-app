@@ -12,6 +12,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Globe, Lock } from 'lucide-react-native';
 import { useClub, useUpdateClub } from '@/api/hooks';
@@ -21,6 +22,7 @@ import type { ThemeTokens } from '@/theme/tokens';
 
 export default function EditClubScreen() {
   const { tokens } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const clubQ = useClub(id);
@@ -73,19 +75,20 @@ export default function EditClubScreen() {
   if (!id) return null;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Edit club</Text>
-      </View>
-      {clubQ.isLoading ? (
-        <ActivityIndicator color={tokens.accentBlue} style={{ marginTop: 40 }} />
-      ) : (
-        <KeyboardAvoidingView
-          style={styles.kav}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={12}
-        >
+    <KeyboardAvoidingView
+      style={styles.keyboardRoot}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+    >
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Edit club</Text>
+        </View>
+        {clubQ.isLoading ? (
+          <ActivityIndicator color={tokens.accentBlue} style={{ marginTop: 40 }} />
+        ) : (
           <ScrollView
+            style={styles.scrollFill}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
@@ -144,9 +147,9 @@ export default function EditClubScreen() {
               </View>
             </View>
           </ScrollView>
-        </KeyboardAvoidingView>
-      )}
-    </View>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -184,10 +187,11 @@ function PrivacyOption({
 
 function makeStyles(t: ThemeTokens) {
   return StyleSheet.create({
+    keyboardRoot: { flex: 1, backgroundColor: t.background },
     container: { flex: 1, backgroundColor: t.background },
     header: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
     headerTitle: { color: t.text, fontWeight: '700', fontSize: 22 },
-    kav: { flex: 1 },
+    scrollFill: { flex: 1, minHeight: 0 },
     scrollContent: { flexGrow: 1, paddingBottom: 32 },
     body: { paddingHorizontal: 20, gap: 8 },
     label: {

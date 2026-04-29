@@ -69,6 +69,7 @@ export default function AiCoachScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const goalInputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const seededRef = useRef(false);
   const { from } = useLocalSearchParams<{ from?: string }>();
 
@@ -102,6 +103,17 @@ export default function AiCoachScreen() {
       return () => {};
     }, [clearActions, qc]),
   );
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvt, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvt, () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const g = trainingGoalQ.data?.goal_text;
@@ -291,7 +303,12 @@ export default function AiCoachScreen() {
   }, [from]);
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      /** Full-screen shell; avoid positive offset — it often reads as extra gap above the keyboard. */
+      keyboardVerticalOffset={0}
+    >
       <View style={styles.header}>
         <TouchableOpacity onPress={closeAi} hitSlop={12}>
           <ArrowLeft size={22} color={tokens.text} />
@@ -439,12 +456,17 @@ export default function AiCoachScreen() {
           ) : null}
         </ScrollView>
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-          style={styles.kavFooter}
-        >
-          <View style={[styles.chatComposer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={styles.kavFooter}>
+          <View
+            style={[
+              styles.chatComposer,
+              {
+                /** When the keyboard is open, safe-area bottom + avoiding padding stacks — use tight inset only. */
+                paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 12),
+                paddingTop: keyboardVisible ? 8 : 10,
+              },
+            ]}
+          >
             <TextInput
               style={styles.chatInput}
               placeholder="Message your coach…"
@@ -465,9 +487,9 @@ export default function AiCoachScreen() {
               <Send size={18} color="#fff" />
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -484,7 +506,8 @@ function makeStyles(t: ThemeTokens) {
     },
     headerTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     headerText: { color: t.text, fontWeight: '600', fontSize: 16 },
-    mainColumn: { flex: 1 },
+    /** minHeight 0 lets ScrollView shrink when KeyboardAvoidingView applies bottom inset (iOS). */
+    mainColumn: { flex: 1, minHeight: 0 },
     intro: {
       color: t.textSecondary,
       fontSize: 13,
@@ -492,8 +515,8 @@ function makeStyles(t: ThemeTokens) {
       paddingHorizontal: 20,
       marginBottom: 12,
     },
-    bodyScroll: { flex: 1 },
-    bodyScrollContent: { paddingBottom: 120 },
+    bodyScroll: { flex: 1, minHeight: 0 },
+    bodyScrollContent: { paddingBottom: 24 },
 
     goalSection: {
       paddingHorizontal: 20,

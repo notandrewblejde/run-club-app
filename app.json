@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.runclub",
-      "buildNumber": "15",
+      "buildNumber": "17",
       "entitlements": {
         "com.apple.developer.healthkit.background-delivery": true
       },
@@ -32,7 +32,7 @@
         "backgroundColor": "#0F0F0F"
       },
       "package": "app.runclub",
-      "versionCode": 15
+      "versionCode": 17
     },
     "plugins": [
       "expo-router",
