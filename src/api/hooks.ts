@@ -90,6 +90,7 @@ export function usePostHealthWorkoutImport() {
       void qc.invalidateQueries({ queryKey: qk.activities('me') });
       void qc.invalidateQueries({ queryKey: qk.activities('following') });
       void qc.invalidateQueries({ queryKey: qk.me() });
+      void qc.invalidateQueries({ queryKey: ['club'] });
     },
   });
 }
@@ -751,6 +752,10 @@ export function useFollowUser() {
       void qc.invalidateQueries({ queryKey: qk.user(userId) });
       void qc.invalidateQueries({ queryKey: qk.activities('following') });
       void qc.invalidateQueries({ queryKey: qk.me() });
+      const me = qc.getQueryData<UserProfile>(qk.me());
+      if (me?.id) {
+        void qc.invalidateQueries({ queryKey: qk.following(me.id) });
+      }
     },
   });
 }
@@ -929,6 +934,10 @@ export function useUnfollowUser() {
       void qc.invalidateQueries({ queryKey: qk.user(userId) });
       void qc.invalidateQueries({ queryKey: qk.activities('following') });
       void qc.invalidateQueries({ queryKey: qk.me() });
+      const me = qc.getQueryData<UserProfile>(qk.me());
+      if (me?.id) {
+        void qc.invalidateQueries({ queryKey: qk.following(me.id) });
+      }
     },
   });
 }

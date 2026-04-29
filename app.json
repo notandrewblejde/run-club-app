@@ -64,7 +64,7 @@
       [
         "react-native-health/app.plugin.js",
         {
-          "healthSharePermission": "Run Club reads running workouts from Apple Health (for example runs logged with Nike Run Club) so they can appear in your feed and inform coaching.",
+          "healthSharePermission": "Run Club reads running workouts, routes, and heart rate during those workouts from Apple Health so they can appear in your feed and inform coaching.",
           "healthUpdatePermission": "Run Club does not write workout data to Apple Health."
         }
       ],

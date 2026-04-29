@@ -31,6 +31,7 @@ export function useAppleHealthBackgroundSync() {
       void queryClient.invalidateQueries({ queryKey: qk.activities('me') });
       void queryClient.invalidateQueries({ queryKey: qk.activities('following') });
       void queryClient.invalidateQueries({ queryKey: qk.me() });
+      void queryClient.invalidateQueries({ queryKey: ['club'] });
     } catch {
       // Background path: avoid surfacing noisy errors; manual import still shows alerts.
     }

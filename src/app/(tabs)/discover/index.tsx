@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,10 @@ import { router } from 'expo-router';
 import {
   useFollowUser,
   useJoinClub,
+  useMe,
   usePublicClubs,
   useSuggestedUsers,
+  useUserFollowing,
   useUserSearch,
 } from '@/api/hooks';
 import { UserRow } from '@/components/social/UserRow';
@@ -33,10 +35,22 @@ export default function DiscoverScreen() {
   const suggestedQ = useSuggestedUsers();
   const join = useJoinClub();
   const follow = useFollowUser();
-  // Local set of users whose follow mutation has succeeded in this session.
-  // Search/suggested rows aren't keyed by qk.user, so we can't read follow
-  // state from the cache; tracking it here gives the button immediate feedback.
+  const meQ = useMe();
+  const followingQ = useUserFollowing(meQ.data?.id);
+  // Local set of users already followed (seeded from API + optimistic updates).
   const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const rows = followingQ.data?.data;
+    if (!rows?.length) return;
+    setFollowedIds((prev) => {
+      const next = new Set(prev);
+      for (const f of rows) {
+        if (f.following_id) next.add(String(f.following_id));
+      }
+      return next;
+    });
+  }, [followingQ.data]);
 
   const handleJoin = async (clubId: string) => {
     try {

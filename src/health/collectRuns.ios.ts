@@ -54,12 +54,12 @@ function isLikelyRun(w: { activityName?: string }): boolean {
 }
 
 function initKit(): Promise<void> {
-  const { Workout, WorkoutRoute } = AppleHealthKit.Constants.Permissions;
+  const { Workout, WorkoutRoute, HeartRate } = AppleHealthKit.Constants.Permissions;
   return new Promise((resolve, reject) => {
     AppleHealthKit.initHealthKit(
       {
         permissions: {
-          read: [Workout, WorkoutRoute],
+          read: [Workout, WorkoutRoute, HeartRate],
           write: [],
         },
       },
@@ -90,20 +90,82 @@ function fetchWorkouts(start: Date, end: Date): Promise<Array<{ id: string; acti
   });
 }
 
-function fetchRoutePolyline(workoutId: string): Promise<string | undefined> {
+const METERS_TO_FEET = 3.28084;
+
+/** Sum positive altitude deltas along the route (meters → feet). Filters invalid CLLocation altitudes. */
+function elevationGainFtFromLocations(
+  locs: { latitude: number; longitude: number; altitude?: number }[],
+): number | undefined {
+  const alts = locs
+    .map((l) => l.altitude)
+    .filter((a) => typeof a === 'number' && Number.isFinite(a) && a > -200 && a < 10000);
+  if (alts.length < 2) return undefined;
+  let gainM = 0;
+  for (let i = 1; i < alts.length; i++) {
+    const d = alts[i] - alts[i - 1];
+    if (d > 0.5) gainM += d;
+  }
+  if (gainM < 1) return undefined;
+  return gainM * METERS_TO_FEET;
+}
+
+function fetchRoutePolylineAndElevation(
+  workoutId: string,
+): Promise<{ polyline?: string; elevationGainFt?: number }> {
   return new Promise((resolve) => {
     AppleHealthKit.getWorkoutRouteSamples({ id: workoutId }, (err: string, results) => {
       if (err || !results?.data?.locations?.length) {
-        resolve(undefined);
+        resolve({});
         return;
       }
       const locs = results.data.locations;
       if (locs.length < 2) {
-        resolve(undefined);
+        resolve({});
         return;
       }
-      resolve(polyline.encode(locs.map((l) => [l.latitude, l.longitude])));
+      resolve({
+        polyline: polyline.encode(locs.map((l) => [l.latitude, l.longitude])),
+        elevationGainFt: elevationGainFtFromLocations(locs),
+      });
     });
+  });
+}
+
+function fetchHeartRateStats(
+  workoutStartIso: string,
+  workoutEndIso: string,
+): Promise<{ avg?: number; max?: number }> {
+  return new Promise((resolve) => {
+    if (!workoutStartIso || !workoutEndIso) {
+      resolve({});
+      return;
+    }
+    AppleHealthKit.getHeartRateSamples(
+      {
+        startDate: workoutStartIso,
+        endDate: workoutEndIso,
+        limit: 8000,
+        ascending: true,
+      },
+      (err: string, results: { value?: number }[]) => {
+        if (err || !Array.isArray(results) || results.length === 0) {
+          resolve({});
+          return;
+        }
+        const values = results
+          .map((r) => r.value)
+          .filter((v): v is number => typeof v === 'number' && v > 35 && v < 230);
+        if (!values.length) {
+          resolve({});
+          return;
+        }
+        const sum = values.reduce((a, b) => a + b, 0);
+        resolve({
+          avg: Math.round(sum / values.length),
+          max: Math.round(Math.max(...values)),
+        });
+      },
+    );
   });
 }
 
@@ -123,7 +185,10 @@ export default async function collectRunsForImport(options?: CollectRunsOptions)
   for (const w of runs) {
     const ext = w.id;
     if (!ext) continue;
-    const route = await fetchRoutePolyline(ext);
+    const [{ polyline: route, elevationGainFt }, hr] = await Promise.all([
+      fetchRoutePolylineAndElevation(ext),
+      fetchHeartRateStats(w.start, w.end),
+    ]);
     const startMs = Date.parse(w.start);
     const endMs = Date.parse(w.end);
     const movingSecs =
@@ -142,7 +207,7 @@ export default async function collectRunsForImport(options?: CollectRunsOptions)
       }
     }
 
-    out.push({
+    const row: UnifiedHealthRun = {
       import_source: 'apple_health',
       external_id: ext,
       name: w.activityName?.trim() || 'Run',
@@ -150,7 +215,13 @@ export default async function collectRunsForImport(options?: CollectRunsOptions)
       distance_meters: distM,
       moving_time_secs: movingSecs,
       map_polyline: route,
-    });
+    };
+    if (elevationGainFt != null && elevationGainFt > 0) {
+      row.elevation_gain_ft = Math.round(elevationGainFt * 10) / 10;
+    }
+    if (hr.avg != null) row.avg_heart_rate_bpm = hr.avg;
+    if (hr.max != null) row.max_heart_rate_bpm = hr.max;
+    out.push(row);
   }
   return out.slice(0, 50);
 }

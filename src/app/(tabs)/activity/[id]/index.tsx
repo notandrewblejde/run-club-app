@@ -101,6 +101,7 @@ export default function ActivityDetailScreen() {
   const deleteComment = useDeleteComment(id ?? '');
 
   const [draft, setDraft] = useState('');
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [activityTab, setActivityTab] = useState<'comments' | 'coach'>('comments');
   const [shareOpen, setShareOpen] = useState(false);
   const [coachMessages, setCoachMessages] = useState<
@@ -121,6 +122,15 @@ export default function ActivityDetailScreen() {
   useEffect(() => {
     setActivityTab('comments');
   }, [id]);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const a = activityQ.data;
@@ -178,6 +188,9 @@ export default function ActivityDetailScreen() {
     !(activity.ai_coach_summary?.trim()) &&
     !summaryPayload?.summary?.trim();
   const showCoachTake = coachTakeRaw.length > 0 || coachTakeLoading;
+
+  /** Extra gap for the floating DetailBar; drop while keyboard is open so KAV + margin don't double-stack. */
+  const composerOuterBottomMargin = keyboardOpen ? 0 : DETAIL_BAR_BOTTOM_CLEARANCE;
 
   const mapUrl = generateStaticMapUrl(activity.map_polyline, 800, 320, {
     style: tokens.mapStyle,
@@ -555,7 +568,7 @@ export default function ActivityDetailScreen() {
             styles.composer,
             {
               paddingBottom: 12 + Math.max(insets.bottom, 8),
-              marginBottom: DETAIL_BAR_BOTTOM_CLEARANCE,
+              marginBottom: composerOuterBottomMargin,
             },
           ]}
         >
@@ -582,7 +595,7 @@ export default function ActivityDetailScreen() {
             styles.composer,
             {
               paddingBottom: 12 + Math.max(insets.bottom, 8),
-              marginBottom: DETAIL_BAR_BOTTOM_CLEARANCE,
+              marginBottom: composerOuterBottomMargin,
             },
           ]}
         >

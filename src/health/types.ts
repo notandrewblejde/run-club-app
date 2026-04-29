@@ -15,4 +15,8 @@ export interface UnifiedHealthRun {
   distance_meters?: number;
   moving_time_secs?: number;
   map_polyline?: string;
+  /** Positive vertical gain (feet), from GPS altitudes when HealthKit exposes them. */
+  elevation_gain_ft?: number;
+  avg_heart_rate_bpm?: number;
+  max_heart_rate_bpm?: number;
 }
