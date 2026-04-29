@@ -1,4 +1,5 @@
-import { Stack } from 'expo-router';
+import { Stack } from 'expo-router'
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useEffect } from 'react';
 import { nativeStackBackGestureOptions } from '@/navigation/stackScreenOptions';
 import { StatusBar } from 'expo-status-bar';
@@ -11,6 +12,7 @@ import { ThemeProvider, useTheme } from '@/theme/ThemeContext';
 import { useAppleHealthBackgroundSync } from '@/health/useAppleHealthBackgroundSync';
 
 export default function RootLayout() {
+  usePushNotifications()
   const restoreAuth = useAuthStore((s) => s.restoreAuth);
 
   useEffect(() => {

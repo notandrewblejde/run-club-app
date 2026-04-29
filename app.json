@@ -23,6 +23,9 @@
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": [
           "strava"
+        ],
+        "UIBackgroundModes": [
+          "remote-notification"
         ]
       }
     },
@@ -62,7 +65,15 @@
           "healthUpdatePermission": "Run Club does not write workout data to Apple Health."
         }
       ],
-      "react-native-health-connect"
+      "react-native-health-connect",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0a0a0a",
+          "sounds": []
+        }
+      ]
     ],
     "extra": {
       "eas": {

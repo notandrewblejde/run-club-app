@@ -971,3 +971,21 @@ export type {
   User,
   Follow,
 };
+
+// Push notification preferences
+export function usePushPrefs() {
+  return useQuery({
+    queryKey: ['push-prefs'],
+    queryFn: () => unwrap(api.GET('/v1/me/push/prefs' as any, {})),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdatePushPrefs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (prefs: { club_activity_alerts?: boolean; daily_coach_tip?: boolean; goal_progress?: boolean }) =>
+      unwrap(api.PATCH('/v1/me/push/prefs' as any, { body: prefs })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['push-prefs'] }),
+  })
+}
