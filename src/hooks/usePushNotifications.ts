@@ -34,9 +34,9 @@ async function registerForPushNotifications() {
   if (finalStatus !== 'granted') return
 
   try {
-    // No projectId needed for Expo Go / development
-    // For production: add projectId from expo.dev after creating an EAS project
-    const tokenData = await Notifications.getExpoPushTokenAsync()
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: '856ca734-4ff9-4980-9f31-566451e77397',
+    })
     const token = tokenData.data
 
     const jwt = await SecureStore.getItemAsync('jwt')
