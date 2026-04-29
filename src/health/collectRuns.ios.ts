@@ -3,6 +3,37 @@ import Constants from 'expo-constants';
 import AppleHealthKit from 'react-native-health';
 import type { CollectRunsOptions, UnifiedHealthRun } from '@/health/types';
 
+/** react-native-health returns workout distance in miles (HKUnit mileUnit in native code). */
+const METERS_PER_MILE = 1609.344;
+
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/** GPS path length when HealthKit totalDistance is missing (Strava/Nike sometimes omit it on the HK sample). */
+function routeLengthMetersFromEncoded(encoded: string | undefined): number | undefined {
+  if (!encoded) return undefined;
+  try {
+    const coords = polyline.decode(encoded) as [number, number][];
+    if (coords.length < 2) return undefined;
+    let meters = 0;
+    for (let i = 1; i < coords.length; i++) {
+      meters += haversineMeters(coords[i - 1][0], coords[i - 1][1], coords[i][0], coords[i][1]);
+    }
+    return meters > 0 ? meters : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function assertHealthKitUsable(): void {
   if (Constants.appOwnership === 'expo') {
     throw new Error(
@@ -100,7 +131,16 @@ export default async function collectRunsForImport(options?: CollectRunsOptions)
         ? Math.max(0, Math.round((endMs - startMs) / 1000))
         : Math.round(w.duration || 0);
 
-    const distM = typeof w.distance === 'number' && w.distance > 0 ? w.distance : undefined;
+    let distM: number | undefined;
+    if (typeof w.distance === 'number' && w.distance > 0) {
+      distM = w.distance * METERS_PER_MILE;
+    }
+    if (distM == null || distM <= 0) {
+      const fromRoute = routeLengthMetersFromEncoded(route);
+      if (fromRoute != null && fromRoute > 0) {
+        distM = fromRoute;
+      }
+    }
 
     out.push({
       import_source: 'apple_health',
