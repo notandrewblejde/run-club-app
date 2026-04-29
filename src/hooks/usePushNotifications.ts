@@ -34,9 +34,9 @@ async function registerForPushNotifications() {
   if (finalStatus !== 'granted') return
 
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: 'run-club', // matches app.json
-    })
+    // No projectId needed for Expo Go / development
+    // For production: add projectId from expo.dev after creating an EAS project
+    const tokenData = await Notifications.getExpoPushTokenAsync()
     const token = tokenData.data
 
     const jwt = await SecureStore.getItemAsync('jwt')
