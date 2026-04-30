@@ -17,7 +17,6 @@ import {
   Modal,
   FlatList,
   Pressable,
-  ActionSheetIOS,
   Share,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
@@ -60,14 +59,40 @@ import {
   formatRelativeFromUnix,
 } from '@/utils/format';
 import { MarkdownBubbleContent } from '@/components/chat/MarkdownBubbleContent';
+import { ActivityShareSheet } from '@/components/activity/ActivityShareSheet';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 import type { components } from '@/api/schema';
 
 type Activity = components['schemas']['Activity'];
 
+/** Share sheet / SMS copy: distance when we have it, else generic Run Club line. */
+function buildActivityShareMessage(activity: Activity): string {
+  const mi = activity.distance_miles;
+  if (mi != null && Number(mi) > 0) {
+    const n = Number(Number(mi).toFixed(2));
+    const unit = n === 1 ? 'mile' : 'miles';
+    return `Check out this ${n} ${unit} run on Run Club!`;
+  }
+  return 'Check out this run on Run Club!';
+}
+
 function coachMsgId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function activityShareStatsLine(activity: Activity): string {
+  const parts: string[] = [];
+  if (activity.distance_miles != null && Number(activity.distance_miles) > 0) {
+    parts.push(formatMiles(activity.distance_miles));
+  }
+  const pace =
+    activity.avg_pace_display ??
+    (activity.avg_pace_secs_per_mile != null
+      ? formatPace(activity.avg_pace_secs_per_mile)
+      : null);
+  if (pace) parts.push(pace);
+  return parts.length ? parts.join(' · ') : 'Run Club activity';
 }
 
 function ActivityShareButton({
@@ -85,8 +110,11 @@ function ActivityShareButton({
   styles: ReturnType<typeof makeStyles>;
   onOpenClubModal: () => void;
 }) {
+  const [sheetOpen, setSheetOpen] = useState(false);
   const shareUrl = activityPublicShareUrl(activity.id);
   const previewOk = activity.share_preview_available === true;
+  const shareHeadline = buildActivityShareMessage(activity);
+  const shareStats = activityShareStatsLine(activity);
 
   const warnPrivateProfile = (then: () => void) => {
     if (previewOk) {
@@ -106,17 +134,17 @@ function ActivityShareButton({
   const copyLink = () => {
     warnPrivateProfile(async () => {
       await Clipboard.setStringAsync(shareUrl);
-      Alert.alert('Copied', 'Activity link copied to the clipboard.');
     });
   };
 
   const systemShare = () => {
     warnPrivateProfile(async () => {
       try {
+        const shareMessage = buildActivityShareMessage(activity);
         await Share.share({
           url: shareUrl,
-          message: `Check out this run: ${activity.name}`,
-          title: activity.name,
+          message: shareMessage,
+          title: shareMessage,
         });
       } catch (e) {
         Alert.alert('Share failed', (e as Error)?.message ?? 'Unknown error');
@@ -143,46 +171,25 @@ function ActivityShareButton({
     onOpenClubModal();
   };
 
-  const openHub = () => {
-    const rows: { label: string; onPress: () => void }[] = [
-      { label: 'Copy link', onPress: () => copyLink() },
-      { label: 'Share…', onPress: () => systemShare() },
-    ];
-    if (mapUrl) {
-      rows.push({ label: 'Share map image…', onPress: () => shareMap() });
-    }
-    rows.push({ label: 'Share to club…', onPress: () => openShareToClub() });
-
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: [...rows.map((r) => r.label), 'Cancel'],
-          cancelButtonIndex: rows.length,
-        },
-        (buttonIndex) => {
-          if (buttonIndex === undefined || buttonIndex === rows.length) return;
-          rows[buttonIndex]?.onPress();
-        },
-      );
-    } else {
-      Alert.alert(
-        'Share',
-        undefined,
-        [
-          ...rows.map((r) => ({
-            text: r.label,
-            onPress: () => r.onPress(),
-          })),
-          { text: 'Cancel', style: 'cancel' },
-        ],
-      );
-    }
-  };
-
   return (
-    <TouchableOpacity onPress={openHub} hitSlop={12} style={styles.headerIconBtn}>
-      <Share2 size={20} color={tokens.textSecondary} />
-    </TouchableOpacity>
+    <>
+      <TouchableOpacity onPress={() => setSheetOpen(true)} hitSlop={12} style={styles.headerIconBtn}>
+        <Share2 size={20} color={tokens.textSecondary} />
+      </TouchableOpacity>
+      <ActivityShareSheet
+        visible={sheetOpen}
+        onDismiss={() => setSheetOpen(false)}
+        mapUrl={mapUrl}
+        headline={shareHeadline}
+        statsLine={shareStats}
+        shareUrl={shareUrl}
+        tokens={tokens}
+        onCopyLink={() => copyLink()}
+        onSystemShare={() => systemShare()}
+        onShareMapImage={mapUrl ? () => shareMap() : null}
+        onShareToClub={() => openShareToClub()}
+      />
+    </>
   );
 }
 
