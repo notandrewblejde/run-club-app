@@ -7,7 +7,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "gen:api": "openapi-typescript ${API_URL:-http://localhost:8080}/v3/api-docs -o src/api/schema.d.ts",
+    "gen:api": "openapi-typescript ${API_URL:-http://localhost:8080/api}/v3/api-docs -o src/api/schema.d.ts",
     "eas:build:ios": "eas build --platform ios --profile production",
     "eas:build:ios:dev-sim": "eas build --platform ios --profile development",
     "eas:submit:ios": "eas submit --platform ios --profile production --latest"

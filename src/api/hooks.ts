@@ -14,7 +14,7 @@ type LeaderboardEntry = components['schemas']['LeaderboardEntry'];
 type UserProfile = components['schemas']['UserProfile'];
 type User = components['schemas']['User'];
 type Follow = components['schemas']['Follow'];
-type TrainingGoalResponse = components['schemas']['TrainingGoalResponse'];
+type TrainingGoal = components['schemas']['TrainingGoal'];
 type TrainingToday = components['schemas']['TrainingToday'];
 type Notification = components['schemas']['Notification'];
 const GOAL_FEEDBACK_PAGE_SIZE = 20;
@@ -67,7 +67,7 @@ export function useNotifications(opts?: { limit?: number }) {
 
 export function usePutTrainingGoal() {
   const qc = useQueryClient();
-  return useMutation<TrainingGoalResponse, Error, string>({
+  return useMutation<TrainingGoal, Error, string>({
     mutationFn: async (goal_text) =>
       unwrap(api.PUT('/v1/me/training-goal', { body: { goal_text } })),
     onSuccess: () => {
@@ -83,7 +83,7 @@ type HealthWorkoutImportItem = components['schemas']['HealthWorkoutImportItem'];
 
 export function usePostHealthWorkoutImport() {
   const qc = useQueryClient();
-  return useMutation<{ imported: number; skipped: number }, Error, HealthWorkoutImportItem[]>({
+  return useMutation<components['schemas']['HealthImportResult'], Error, HealthWorkoutImportItem[]>({
     mutationFn: async (workouts) =>
       unwrap(api.POST('/v1/me/activities/health-import', { body: { workouts } })),
     onSuccess: () => {

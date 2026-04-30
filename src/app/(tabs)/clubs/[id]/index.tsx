@@ -32,8 +32,8 @@ import {
   useMe,
   type ClubLeaderboardQuery,
 } from '@/api/hooks';
-import { formatRelativeFromUnix } from '@/utils/format';
-import { formatMiles } from '@/utils/format';
+import { formatRelativeFromUnix, formatMiles, formatDuration } from '@/utils/format';
+import { generateStaticMapUrl } from '@/utils/mapbox';
 import {
   useBottomBarActions,
   type BottomBarAction,
@@ -207,24 +207,165 @@ export default function ClubDetailScreen() {
               ) : (
                 recentFeed.map((item) => {
                   const feedItemId = String(item.id ?? '');
-                  const type = String(item.type ?? '');
-                  const authorName = String(
-                    item.author_name ?? item.athlete_name ?? 'Someone',
-                  );
-                  const created = item.created_at as string | undefined;
-                  const summary =
-                    type === 'post'
-                      ? String(item.content ?? '')
-                      : `${authorName} logged ${item.name ?? 'a run'}`;
-                  const authorId = String(item.author_id ?? item.athlete_id ?? '');
-                  const isEditablePost = type === 'post' && !!authorId && authorId === myUserId;
+                  const created = item.created_at as string | number | undefined;
+                  const createdEpoch =
+                    typeof created === 'string'
+                      ? Math.floor(new Date(created).getTime() / 1000)
+                      : typeof created === 'number'
+                        ? created
+                        : undefined;
+
+                  if (item.type === 'activity') {
+                    const authorName = String(item.athlete_name ?? 'Someone');
+                    const poly =
+                      typeof item.map_polyline === 'string' && item.map_polyline.length > 0
+                        ? item.map_polyline
+                        : null;
+                    const rawMoving = item.moving_time_secs;
+                    const movingSecs =
+                      typeof rawMoving === 'number'
+                        ? rawMoving
+                        : typeof rawMoving === 'string'
+                          ? parseInt(rawMoving, 10)
+                          : NaN;
+                    const rawDist = item.distance_miles;
+                    const distNum =
+                      typeof rawDist === 'number'
+                        ? rawDist
+                        : typeof rawDist === 'string'
+                          ? parseFloat(rawDist)
+                          : NaN;
+                    const activityTitle = String(item.name ?? 'Run');
+                    const mapUrl = generateStaticMapUrl(poly, 160, 160, {
+                      style: tokens.mapStyle,
+                      pathColor: tokens.mapPathColor,
+                    });
+                    const distLabel =
+                      Number.isFinite(distNum) && distNum > 0 ? formatMiles(distNum) : null;
+                    const timeLabel =
+                      Number.isFinite(movingSecs) && movingSecs > 0
+                        ? formatDuration(movingSecs)
+                        : null;
+                    const statsLine = [distLabel, timeLabel].filter(Boolean).join(' · ');
+
+                    return (
+                      <View key={`activity-${feedItemId}`} style={styles.feedRow}>
+                        <View style={styles.feedDot} />
+                        <TouchableOpacity
+                          style={styles.feedActivityMain}
+                          onPress={() =>
+                            router.push(`/(tabs)/activity/${feedItemId}`, { withAnchor: true })
+                          }
+                          activeOpacity={0.88}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Open activity ${activityTitle}`}
+                        >
+                          <View style={styles.feedActivityBody}>
+                            <View style={styles.feedTopRow}>
+                              <Text style={styles.feedAuthor}>{authorName}</Text>
+                            </View>
+                            <Text style={styles.feedActivityTitle} numberOfLines={2}>
+                              {activityTitle}
+                            </Text>
+                            {statsLine ? (
+                              <Text style={styles.feedActivityStats}>{statsLine}</Text>
+                            ) : null}
+                            {createdEpoch != null && !Number.isNaN(createdEpoch) ? (
+                              <Text style={styles.feedTimestamp}>
+                                {formatRelativeFromUnix(createdEpoch)}
+                              </Text>
+                            ) : null}
+                          </View>
+                          {mapUrl ? (
+                            <Image
+                              source={{ uri: mapUrl }}
+                              style={styles.feedActivityMap}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={[styles.feedActivityMap, styles.feedActivityMapPlaceholder]}>
+                              <Text style={styles.feedActivityMapPhText}>No route</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  }
+
+                  const authorName = String(item.author_name ?? 'Someone');
+                  const authorId = String(item.author_id ?? '');
+                  const isEditablePost = !!authorId && authorId === myUserId;
+
+                  const summary = String(item.content ?? '');
+                  const relatedIdRaw = item.related_activity_id;
+                  const relatedId =
+                    relatedIdRaw != null && String(relatedIdRaw).length > 0
+                      ? String(relatedIdRaw)
+                      : null;
+                  const relatedPoly =
+                    typeof item.related_activity_map_polyline === 'string' &&
+                    item.related_activity_map_polyline.length > 0
+                      ? item.related_activity_map_polyline
+                      : null;
+                  const rawRelatedMoving = item.related_activity_moving_time_secs;
+                  const relatedMovingSecs =
+                    typeof rawRelatedMoving === 'number'
+                      ? rawRelatedMoving
+                      : typeof rawRelatedMoving === 'string'
+                        ? parseInt(rawRelatedMoving, 10)
+                        : NaN;
+                  const rawRelatedDist = item.related_activity_distance_miles;
+                  const relatedDistNum =
+                    typeof rawRelatedDist === 'number'
+                      ? rawRelatedDist
+                      : typeof rawRelatedDist === 'string'
+                        ? parseFloat(rawRelatedDist)
+                        : NaN;
+                  const hasLinkedRunData =
+                    relatedId != null &&
+                    (relatedPoly != null ||
+                      (Number.isFinite(relatedDistNum) && relatedDistNum > 0) ||
+                      (Number.isFinite(relatedMovingSecs) && relatedMovingSecs > 0));
+                  const relatedTitle = String(item.related_activity_name ?? 'Run');
+                  const relatedMapUrl = hasLinkedRunData
+                    ? generateStaticMapUrl(relatedPoly, 160, 160, {
+                        style: tokens.mapStyle,
+                        pathColor: tokens.mapPathColor,
+                      })
+                    : null;
+                  const relatedDistLabel =
+                    Number.isFinite(relatedDistNum) && relatedDistNum > 0
+                      ? formatMiles(relatedDistNum)
+                      : null;
+                  const relatedTimeLabel =
+                    Number.isFinite(relatedMovingSecs) && relatedMovingSecs > 0
+                      ? formatDuration(relatedMovingSecs)
+                      : null;
+                  const relatedStatsLine = [relatedDistLabel, relatedTimeLabel]
+                    .filter(Boolean)
+                    .join(' · ');
+
                   return (
-                    <View key={`${type}-${feedItemId}`} style={styles.feedRow}>
+                    <View key={`post-${feedItemId}`} style={styles.feedRow}>
                       <View style={styles.feedDot} />
                       <View style={{ flex: 1 }}>
                         <View style={styles.feedTopRow}>
                           <Text style={styles.feedAuthor}>{authorName}</Text>
-                          {isEditablePost ? (
+                          {hasLinkedRunData && relatedId ? (
+                            <TouchableOpacity
+                              onPress={() =>
+                                router.push(
+                                  `/(tabs)/clubs/${id}/posts/${feedItemId}/edit`,
+                                  { withAnchor: true },
+                                )
+                              }
+                              hitSlop={10}
+                              accessibilityRole="button"
+                              accessibilityLabel="Open club post"
+                            >
+                              <ChevronRight size={22} color={tokens.textSecondary} />
+                            </TouchableOpacity>
+                          ) : isEditablePost ? (
                             <TouchableOpacity
                               onPress={() =>
                                 router.push(`/(tabs)/clubs/${id}/posts/${feedItemId}/edit`)
@@ -237,16 +378,49 @@ export default function ClubDetailScreen() {
                             </TouchableOpacity>
                           ) : null}
                         </View>
-                        <Text style={styles.feedSummary} numberOfLines={2}>
-                          {summary}
-                        </Text>
-                        {created ? (
-                          <Text style={styles.feedTimestamp}>
-                            {formatRelativeFromUnix(
-                              typeof created === 'string'
-                                ? Math.floor(new Date(created).getTime() / 1000)
-                                : created,
+                        {hasLinkedRunData && relatedId ? (
+                          <TouchableOpacity
+                            style={styles.feedActivityMain}
+                            onPress={() =>
+                              router.push(`/(tabs)/activity/${relatedId}`, { withAnchor: true })
+                            }
+                            activeOpacity={0.88}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Open linked activity ${relatedTitle}`}
+                          >
+                            <View style={styles.feedActivityBody}>
+                              <Text style={[styles.feedSummary, { marginTop: 0 }]} numberOfLines={3}>
+                                {summary}
+                              </Text>
+                              <Text style={styles.feedActivityTitle} numberOfLines={2}>
+                                {relatedTitle}
+                              </Text>
+                              {relatedStatsLine ? (
+                                <Text style={styles.feedActivityStats}>{relatedStatsLine}</Text>
+                              ) : null}
+                            </View>
+                            {relatedMapUrl ? (
+                              <Image
+                                source={{ uri: relatedMapUrl }}
+                                style={styles.feedActivityMap}
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <View
+                                style={[styles.feedActivityMap, styles.feedActivityMapPlaceholder]}
+                              >
+                                <Text style={styles.feedActivityMapPhText}>No route</Text>
+                              </View>
                             )}
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.feedSummary} numberOfLines={2}>
+                            {summary}
+                          </Text>
+                        )}
+                        {createdEpoch != null && !Number.isNaN(createdEpoch) ? (
+                          <Text style={styles.feedTimestamp}>
+                            {formatRelativeFromUnix(createdEpoch)}
                           </Text>
                         ) : null}
                       </View>
@@ -808,5 +982,36 @@ function makeStyles(t: ThemeTokens) {
     feedEditLabel: { fontSize: 12, fontWeight: '600' },
     feedSummary: { color: t.textSecondary, fontSize: 13, marginTop: 2 },
     feedTimestamp: { color: t.textMuted, fontSize: 11, marginTop: 4 },
+    feedActivityMain: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    feedActivityMap: {
+      width: 72,
+      height: 72,
+      borderRadius: 10,
+      backgroundColor: t.surfaceElevated,
+    },
+    feedActivityMapPlaceholder: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: t.divider,
+    },
+    feedActivityMapPhText: { color: t.textMuted, fontSize: 10, fontWeight: '600' },
+    feedActivityBody: { flex: 1, minWidth: 0 },
+    feedActivityTitle: {
+      color: t.text,
+      fontSize: 15,
+      fontWeight: '600',
+      marginTop: 2,
+    },
+    feedActivityStats: {
+      color: t.textSecondary,
+      fontSize: 13,
+      marginTop: 4,
+    },
   });
 }

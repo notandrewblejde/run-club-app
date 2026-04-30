@@ -47,7 +47,7 @@ export interface paths {
     get: {
       parameters: { path: { activityId: string } };
       responses: {
-        200: { content: { 'application/json': { activity_id: string; summary: string } } };
+        200: { content: { 'application/json': components['schemas']['ActivitySummary'] } };
       };
     };
   };
@@ -58,7 +58,7 @@ export interface paths {
         content: { 'application/json': { message: string } };
       };
       responses: {
-        200: { content: { 'application/json': { reply: string } } };
+        200: { content: { 'application/json': components['schemas']['CoachReply'] } };
       };
     };
   };
@@ -189,7 +189,7 @@ export interface paths {
       responses: {
         200: {
           content: {
-            'application/json': { feed: components['schemas']['ClubFeedItem'][]; total: number };
+            'application/json': components['schemas']['ClubFeed'];
           };
         };
       };
@@ -301,6 +301,17 @@ export interface paths {
       };
     };
   };
+  '/v1/clubs/{clubId}/goals/{goalId}/contributions': {
+    post: {
+      parameters: { path: { clubId: string; goalId: string } };
+      requestBody: {
+        content: { 'application/json': { activity_id: string } };
+      };
+      responses: {
+        201: { content: { 'application/json': components['schemas']['GoalContribution'] } };
+      };
+    };
+  };
   '/v1/users/me': {
     get: {
       responses: { 200: { content: { 'application/json': components['schemas']['UserProfile'] } } };
@@ -374,14 +385,7 @@ export interface paths {
       responses: {
         201: {
           content: {
-            'application/json': {
-              object: 'follow';
-              follower_id: string;
-              following_id: string;
-              user?: components['schemas']['User'];
-              status: 'pending' | 'accepted';
-              created?: number;
-            };
+            'application/json': components['schemas']['Follow'];
           };
         };
       };
@@ -429,7 +433,7 @@ export interface paths {
         content: { 'application/json': { message: string } };
       };
       responses: {
-        200: { content: { 'application/json': { reply: string } } };
+        200: { content: { 'application/json': components['schemas']['CoachReply'] } };
       };
     };
   };
@@ -437,26 +441,18 @@ export interface paths {
     post: {
       requestBody: {
         content: {
-          'application/json': { workouts: components['schemas']['HealthWorkoutImportItem'][] };
+          'application/json': { workouts: components['schemas']['HealthWorkoutImportItem'][] },
         };
       };
       responses: {
-        200: {
-          content: {
-            'application/json': { imported: number; skipped: number };
-          };
-        };
+        200: { content: { 'application/json': components['schemas']['HealthImportResult'] } };
       };
     };
   };
   '/v1/me/training-goal': {
     get: {
       responses: {
-        200: {
-          content: {
-            'application/json': components['schemas']['TrainingGoalResponse'];
-          };
-        };
+        200: { content: { 'application/json': components['schemas']['TrainingGoal'] } };
       };
     };
     put: {
@@ -464,11 +460,7 @@ export interface paths {
         content: { 'application/json': { goal_text?: string } };
       };
       responses: {
-        200: {
-          content: {
-            'application/json': components['schemas']['TrainingGoalResponse'];
-          };
-        };
+        200: { content: { 'application/json': components['schemas']['TrainingGoal'] } };
       };
     };
   };
@@ -476,11 +468,7 @@ export interface paths {
     get: {
       parameters: { query?: { page?: number; limit?: number } };
       responses: {
-        200: {
-          content: {
-            'application/json': ApiList<components['schemas']['GoalFeedbackMessage']>;
-          };
-        };
+        200: { content: { 'application/json': ApiList<components['schemas']['GoalFeedbackMessage']> } };
       };
     };
     post: {
@@ -488,12 +476,12 @@ export interface paths {
         content: { 'application/json': { message: string } };
       };
       responses: {
-        200: { content: { 'application/json': { reply: string } } };
+        200: { content: { 'application/json': components['schemas']['CoachReply'] } };
       };
     };
     delete: {
       responses: {
-        200: { content: { 'application/json': { deleted: number } } };
+        200: { content: { 'application/json': components['schemas']['GoalFeedbackDeletion'] } };
       };
     };
   };
@@ -515,21 +503,14 @@ export interface paths {
   '/v1/notifications/preview': {
     get: {
       responses: {
-        200: {
-          content: {
-            'application/json': {
-              unread_count: number;
-              latest: components['schemas']['Notification'] | null;
-            };
-          };
-        };
+        200: { content: { 'application/json': components['schemas']['NotificationPreview'] } };
       };
     };
   };
   '/v1/notifications/read-all': {
     post: {
       responses: {
-        200: { content: { 'application/json': { updated: number } } };
+        200: { content: { 'application/json': components['schemas']['NotificationReadAllResult'] } };
       };
     };
   };
@@ -714,6 +695,8 @@ export interface components {
       following_id: string;
       user?: components['schemas']['User'];
       created?: number;
+      /** Set on {@code POST /v1/users/{userId}/follow}; omitted on list payloads. */
+      status?: 'pending' | 'accepted';
     };
     FollowRequest: {
       object: 'follow_request';
@@ -732,27 +715,86 @@ export interface components {
       related_activity_id?: string;
       created?: number;
     };
-    /**
-     * Mixed feed item (post or activity). Backend currently emits a loose
-     * shape; check `type` to discriminate.
-     */
-    ClubFeedItem: {
-      type: 'post' | 'activity';
+    ClubFeed: {
+      feed: components['schemas']['ClubFeedItem'][];
+      total: number;
+      page: number;
+      limit: number;
+    };
+    ActivitySummary: {
+      activity_id: string;
+      summary: string;
+    };
+    CoachReply: {
+      reply: string;
+    };
+    HealthImportResult: {
+      imported: number;
+      skipped: number;
+    };
+    NotificationPreview: {
+      unread_count: number;
+      latest: components['schemas']['Notification'] | null;
+    };
+    NotificationReadAllResult: {
+      updated: number;
+    };
+    GoalFeedbackDeletion: {
+      deleted: number;
+    };
+    GoalContribution: {
+      object: 'goal_contribution';
       id: string;
-      [key: string]: unknown;
+      goal_id: string;
+      distance_miles: number;
+    };
+    DailyTrainingPlan: {
+      plan_date: string;
+      headline: string;
+      generated_at: string;
+      body: Record<string, unknown>;
+    };
+    /** Discriminate with {@code type}: {@code post} vs {@code activity}. */
+    ClubFeedItem: components['schemas']['ClubFeedPostItem'] | components['schemas']['ClubFeedActivityItem'];
+    ClubFeedPostItem: {
+      type: 'post';
+      id: string;
+      author_id: string;
+      author_name: string;
+      author_avatar_url?: string | null;
+      content: string;
+      photos?: string[] | null;
+      related_activity_id?: string | null;
+      related_activity_name?: string | null;
+      related_activity_distance_miles?: number | null;
+      related_activity_moving_time_secs?: number | null;
+      related_activity_map_polyline?: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+    ClubFeedActivityItem: {
+      type: 'activity';
+      id: string;
+      athlete_id: string;
+      athlete_name: string;
+      athlete_avatar_url?: string | null;
+      name: string;
+      sport_type?: string | null;
+      distance_miles?: number | null;
+      moving_time_secs?: number | null;
+      map_polyline?: string | null;
+      avg_pace_display?: string | null;
+      kudos_count: number;
+      comment_count: number;
+      created_at: string;
     };
     ApiError: { error: { type: string; code?: string; message?: string } };
-    TrainingGoalResponse: {
+    TrainingGoal: {
       goal_text: string;
       interpretation_json?: string | null;
       interpretation?: Record<string, unknown> | null;
       interpretation_updated_at?: string | null;
-      daily_plan?: {
-        plan_date: string;
-        headline: string;
-        generated_at: string;
-        body: Record<string, unknown>;
-      } | null;
+      daily_plan?: components['schemas']['DailyTrainingPlan'] | null;
     };
     TrainingToday: {
       headline: string;

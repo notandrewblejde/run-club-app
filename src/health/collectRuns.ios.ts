@@ -98,7 +98,10 @@ function elevationGainFtFromLocations(
 ): number | undefined {
   const alts = locs
     .map((l) => l.altitude)
-    .filter((a) => typeof a === 'number' && Number.isFinite(a) && a > -200 && a < 10000);
+    .filter(
+      (a): a is number =>
+        typeof a === 'number' && Number.isFinite(a) && a > -200 && a < 10000,
+    );
   if (alts.length < 2) return undefined;
   let gainM = 0;
   for (let i = 1; i < alts.length; i++) {
