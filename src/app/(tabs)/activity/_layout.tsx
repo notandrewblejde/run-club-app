@@ -23,7 +23,7 @@ export const unstable_settings = {
 export default function ActivityStackLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, ...nativeStackBackGestureOptions }}>
-      <Stack.Screen name="index" />
+      <Stack.Screen name="index" options={{ freezeOnBlur: true }} />
       <Stack.Screen
         name="[id]/index"
         options={

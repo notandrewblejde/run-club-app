@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  findNodeHandle,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -63,18 +64,22 @@ function coachMsgId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/** Space so the composer clears the floating DetailBar (back + agent pill, ~52px + ~28 offset). */
-const DETAIL_BAR_BOTTOM_CLEARANCE = 82;
-
 export default function ActivityDetailScreen() {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
   const insets = useSafeAreaInsets();
-  const { id, from, profileId } = useLocalSearchParams<{
+  const { id, from, profileId, commentId: commentIdParam } = useLocalSearchParams<{
     id: string;
     from?: string;
     profileId?: string;
+    commentId?: string | string[];
   }>();
+
+  const commentIdFromLink = useMemo(() => {
+    if (typeof commentIdParam === 'string' && commentIdParam.trim()) return commentIdParam.trim();
+    if (Array.isArray(commentIdParam) && commentIdParam[0]?.trim()) return commentIdParam[0].trim();
+    return null;
+  }, [commentIdParam]);
 
   /** `router.back()` can bubble past this stack and restore the wrong tab (e.g. discover). */
   const closeActivityDetail = useCallback(() => {
@@ -90,6 +95,7 @@ export default function ActivityDetailScreen() {
     enabled:
       !!id &&
       !!activityQ.data &&
+      activityQ.data.owned_by_viewer &&
       !(
         activityQ.data.ai_coach_summary &&
         activityQ.data.ai_coach_summary.trim().length > 0
@@ -114,6 +120,8 @@ export default function ActivityDetailScreen() {
   const coachScrollRef = useRef<ScrollView>(null);
   const commentsRef = useRef<View>(null);
   const mainScrollRef = useRef<ScrollView>(null);
+  const commentRowRefs = useRef<Map<string, View>>(new Map());
+  const [linkedCommentId, setLinkedCommentId] = useState<string | null>(null);
   const coachSeedId = useRef<string | null>(null);
 
   const scrollMainTowardComposer = useCallback(() => {
@@ -162,6 +170,54 @@ export default function ActivityDetailScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    commentRowRefs.current.clear();
+  }, [id]);
+
+  useEffect(() => {
+    if (!commentIdFromLink) {
+      setLinkedCommentId(null);
+      return;
+    }
+    setActivityTab('comments');
+    setLinkedCommentId(commentIdFromLink);
+    const t = setTimeout(() => setLinkedCommentId(null), 6000);
+    return () => clearTimeout(t);
+  }, [commentIdFromLink, id]);
+
+  useEffect(() => {
+    if (!linkedCommentId || !id || activityQ.isLoading || commentsQ.isLoading || !activityQ.data) return;
+    const t = setTimeout(() => {
+      const row = commentRowRefs.current.get(linkedCommentId);
+      const scroll = mainScrollRef.current;
+      if (!row || !scroll) {
+        commentsRef.current?.measureInWindow((_, y) => {
+          mainScrollRef.current?.scrollTo({ y: Math.max(0, y - 100), animated: true });
+        });
+        return;
+      }
+      const handle = findNodeHandle(scroll);
+      if (handle == null) {
+        commentsRef.current?.measureInWindow((_, y) => {
+          mainScrollRef.current?.scrollTo({ y: Math.max(0, y - 100), animated: true });
+        });
+        return;
+      }
+      row.measureLayout(
+        handle,
+        (_x, y) => {
+          mainScrollRef.current?.scrollTo({ y: Math.max(0, y - 20), animated: true });
+        },
+        () => {
+          commentsRef.current?.measureInWindow((_, y) => {
+            mainScrollRef.current?.scrollTo({ y: Math.max(0, y - 100), animated: true });
+          });
+        },
+      );
+    }, 100);
+    return () => clearTimeout(t);
+  }, [linkedCommentId, id, activityQ.isLoading, activityQ.data, commentsQ.isLoading, commentsQ.data]);
+
   if (!id) return null;
 
   if (activityQ.isLoading) {
@@ -182,16 +238,18 @@ export default function ActivityDetailScreen() {
   const activity = activityQ.data;
   const summaryPayload = summaryQ.data as ActivityCoachSummaryPayload | undefined;
 
-  const coachTakeRaw =
-    activity.ai_coach_summary?.trim() || summaryPayload?.summary?.trim() || '';
+  const coachTakeRaw = activity.owned_by_viewer
+    ? activity.ai_coach_summary?.trim() || summaryPayload?.summary?.trim() || ''
+    : '';
   const coachTakeLoading =
+    activity.owned_by_viewer &&
     summaryQ.isPending &&
     !(activity.ai_coach_summary?.trim()) &&
     !summaryPayload?.summary?.trim();
-  const showCoachTake = coachTakeRaw.length > 0 || coachTakeLoading;
+  const showCoachTake = activity.owned_by_viewer && (coachTakeRaw.length > 0 || coachTakeLoading);
 
-  /** Extra gap for the floating DetailBar; drop while keyboard is open so KAV + margin don't double-stack. */
-  const composerOuterBottomMargin = keyboardOpen ? 0 : DETAIL_BAR_BOTTOM_CLEARANCE;
+  /** Activity tab hides the global tab bar — no DetailBar clearance. Use home inset only when keyboard is closed. */
+  const composerPaddingBottom = keyboardOpen ? 10 : 10 + insets.bottom;
 
   const mapUrl = generateStaticMapUrl(activity.map_polyline, 800, 320, {
     style: tokens.mapStyle,
@@ -481,7 +539,17 @@ export default function ActivityDetailScreen() {
               <Text style={styles.emptyComments}>Be the first to drop a comment.</Text>
             ) : (
               comments.map((c) => (
-                <View key={c.id} style={styles.commentRow}>
+                <View
+                  key={c.id}
+                  ref={(el) => {
+                    if (el) commentRowRefs.current.set(c.id, el);
+                    else commentRowRefs.current.delete(c.id);
+                  }}
+                  style={[
+                    styles.commentRow,
+                    linkedCommentId === c.id && styles.commentRowHighlighted,
+                  ]}
+                >
                   <View style={styles.commentAvatar}>
                     <Text style={styles.commentInitial}>
                       {(c.user?.name ?? '?').slice(0, 1).toUpperCase()}
@@ -552,15 +620,7 @@ export default function ActivityDetailScreen() {
       </ScrollView>
 
       {!activity.owned_by_viewer || activityTab === 'comments' ? (
-        <View
-          style={[
-            styles.composer,
-            {
-              paddingBottom: 12 + Math.max(insets.bottom, 8),
-              marginBottom: composerOuterBottomMargin,
-            },
-          ]}
-        >
+        <View style={[styles.composer, { paddingBottom: composerPaddingBottom }]}>
           <TextInput
             style={styles.input}
             placeholder="Add a comment…"
@@ -579,15 +639,7 @@ export default function ActivityDetailScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View
-          style={[
-            styles.composer,
-            {
-              paddingBottom: 12 + Math.max(insets.bottom, 8),
-              marginBottom: composerOuterBottomMargin,
-            },
-          ]}
-        >
+        <View style={[styles.composer, { paddingBottom: composerPaddingBottom }]}>
           <TextInput
             style={styles.input}
             placeholder="Ask your coach about this run…"
@@ -812,6 +864,14 @@ function makeStyles(t: ThemeTokens) {
       paddingHorizontal: 20,
       paddingVertical: 8,
       gap: 10,
+    },
+    commentRowHighlighted: {
+      backgroundColor: t.surfaceElevated,
+      borderRadius: 10,
+      marginHorizontal: 12,
+      paddingHorizontal: 8,
+      borderWidth: 1,
+      borderColor: t.accentBlue,
     },
     commentAvatar: {
       width: 32,

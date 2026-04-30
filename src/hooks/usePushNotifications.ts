@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 import { Platform } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
+import { openFromPushData, type PushNotificationData } from '@/navigation/notificationDeepLink'
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api'
 
@@ -17,6 +18,20 @@ Notifications.setNotificationHandler({
 export function usePushNotifications() {
   useEffect(() => {
     registerForPushNotifications()
+  }, [])
+
+  useEffect(() => {
+    const opened = (response: Notifications.NotificationResponse | null | undefined) => {
+      const data = response?.notification.request.content.data as PushNotificationData | undefined
+      openFromPushData(data)
+    }
+
+    void Notifications.getLastNotificationResponseAsync().then(opened)
+
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      opened(response)
+    })
+    return () => sub.remove()
   }, [])
 }
 

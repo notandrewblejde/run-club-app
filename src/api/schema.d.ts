@@ -138,7 +138,7 @@ export interface paths {
     get: {
       parameters: {
         path: { clubId: string };
-        query?: { window?: '30d' | 'all'; goalId?: string; limit?: number };
+        query?: { window?: '30d' | '90d'; goalId?: string; limit?: number };
       };
       responses: {
         200: { content: { 'application/json': ApiList<components['schemas']['LeaderboardEntry']> } };

@@ -616,7 +616,7 @@ export function useGoalLeaderboard(clubId: string, goalId: string | undefined) {
 }
 
 export type ClubLeaderboardQuery =
-  | { window: '30d' | 'all' }
+  | { window: '30d' | '90d' }
   | { goalId: string };
 
 export function useClubLeaderboard(
@@ -993,8 +993,12 @@ export function usePushPrefs() {
 export function useUpdatePushPrefs() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (prefs: { club_activity_alerts?: boolean; daily_coach_tip?: boolean; goal_progress?: boolean }) =>
-      unwrap(api.PATCH('/v1/me/push/prefs' as any, { body: prefs })),
+    mutationFn: (prefs: {
+      club_activity_alerts?: boolean
+      daily_coach_tip?: boolean
+      goal_progress?: boolean
+      activity_comment_alerts?: boolean
+    }) => unwrap(api.PATCH('/v1/me/push/prefs' as any, { body: prefs })),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['push-prefs'] }),
   })
 }

@@ -271,6 +271,11 @@ export default function ProfileScreen() {
           </View>
           {([
             { key: 'club_activity_alerts', label: 'Club activity', desc: 'When a member logs a run' },
+            {
+              key: 'activity_comment_alerts',
+              label: 'Comments on your runs',
+              desc: 'When someone comments on your activity',
+            },
             { key: 'daily_coach_tip', label: 'Daily coach tip', desc: '8am training recommendation' },
             { key: 'goal_progress', label: 'Goal milestones', desc: 'Club goal progress updates' },
           ] as const).map(({ key, label, desc }) => (

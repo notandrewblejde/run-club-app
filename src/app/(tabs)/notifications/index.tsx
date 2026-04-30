@@ -10,6 +10,7 @@ import {
   Pressable,
 } from 'react-native';
 import { router } from 'expo-router';
+import { openActivityNotificationTarget } from '@/navigation/notificationDeepLink';
 import { ArrowLeft } from 'lucide-react-native';
 import {
   useNotifications,
@@ -22,11 +23,17 @@ import type { components } from '@/api/schema';
 
 type Notification = components['schemas']['Notification'];
 
-function parseActivityId(payload: string | null | undefined): string | null {
+function parseNotificationPayload(payload: string | null | undefined): {
+  activityId: string;
+  commentId?: string;
+} | null {
   if (!payload?.trim()) return null;
   try {
-    const o = JSON.parse(payload) as { activityId?: string };
-    return o.activityId && typeof o.activityId === 'string' ? o.activityId : null;
+    const o = JSON.parse(payload) as { activityId?: string; commentId?: string };
+    const activityId = o.activityId && typeof o.activityId === 'string' ? o.activityId : null;
+    if (!activityId) return null;
+    const commentId = o.commentId && typeof o.commentId === 'string' ? o.commentId : undefined;
+    return { activityId, commentId };
   } catch {
     return null;
   }
@@ -52,9 +59,9 @@ export default function NotificationsScreen() {
     } catch {
       // still navigate
     }
-    const aid = parseActivityId(item.payload_json);
-    if (aid) {
-      router.push(`/(tabs)/activity/${aid}`, { withAnchor: true });
+    const parsed = parseNotificationPayload(item.payload_json);
+    if (parsed) {
+      openActivityNotificationTarget(parsed.activityId, { commentId: parsed.commentId });
     }
   };
 
@@ -91,7 +98,9 @@ export default function NotificationsScreen() {
           listQ.isLoading ? (
             <ActivityIndicator color={tokens.accentBlue} style={{ marginTop: 40 }} />
           ) : (
-            <Text style={styles.empty}>No notifications yet. They appear when new runs sync from Strava.</Text>
+            <Text style={styles.empty}>
+              No notifications yet. They appear for new Strava syncs, comments on your activities, and more.
+            </Text>
           )
         }
         renderItem={({ item }) => {
@@ -108,7 +117,7 @@ export default function NotificationsScreen() {
                   {item.body}
                 </Text>
                 <Text style={styles.cardMeta}>
-                  {parseActivityId(item.payload_json) ? 'Tap for activity · ' : ''}
+                  {parseNotificationPayload(item.payload_json) ? 'Tap to open · ' : ''}
                   {item.created_at}
                 </Text>
               </View>

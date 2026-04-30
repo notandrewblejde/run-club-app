@@ -43,8 +43,8 @@ export const qk = {
     ['club', clubId, 'goal', goalId, 'progress'] as const,
   goalLeaderboard: (clubId: string, goalId: string) =>
     ['club', clubId, 'goal', goalId, 'leaderboard'] as const,
-  /** Club-wide leaderboard: 30d, all, or a goal */
-  clubLeaderboard: (clubId: string, spec: { window: '30d' | 'all' } | { goalId: string }) =>
+  /** Club-wide leaderboard: rolling 30d / 90d, or a goal */
+  clubLeaderboard: (clubId: string, spec: { window: '30d' | '90d' } | { goalId: string }) =>
     [
       'club',
       clubId,

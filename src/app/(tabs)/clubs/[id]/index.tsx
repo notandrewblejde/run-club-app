@@ -54,7 +54,7 @@ export default function ClubDetailScreen() {
   const goalsQ = useClubGoals(id, true);
   const { setActions, clearActions } = useBottomBarActions();
   const [homeTab, setHomeTab] = useState<ClubHomeTab>('activity');
-  const [lbMode, setLbMode] = useState<'30d' | 'all' | 'goal'>('30d');
+  const [lbMode, setLbMode] = useState<'30d' | '90d' | 'goal'>('30d');
   const [lbGoalId, setLbGoalId] = useState<string | undefined>(undefined);
 
   const feedQ = useClubFeed(id);
@@ -70,7 +70,7 @@ export default function ClubDetailScreen() {
 
   const lbSpec = useMemo((): ClubLeaderboardQuery | null => {
     if (lbMode === '30d') return { window: '30d' };
-    if (lbMode === 'all') return { window: 'all' };
+    if (lbMode === '90d') return { window: '90d' };
     if (lbMode === 'goal' && lbGoalId) return { goalId: lbGoalId };
     return null;
   }, [lbMode, lbGoalId]);
@@ -438,10 +438,9 @@ export default function ClubDetailScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.leaderboardScreenTitle}>Leaderboard</Text>
                   <Text style={styles.leaderboardHint}>
-                    Top 10 by miles. 30 days = runs in the last 30 days. All time = runs
-                    since each person joined this club. Goal = miles toward the selected
-                    goal; each row shows that person’s share of the club’s total miles toward
-                    this goal so far.
+                    Top 10 by miles. 30 days and 90 days use rolling windows from each member’s
+                    activities in this club. Goal ranks miles toward the selected goal; each row
+                    shows that person’s share of the club’s total miles toward this goal so far.
                   </Text>
                 </View>
               </View>
@@ -450,7 +449,7 @@ export default function ClubDetailScreen() {
                 {(
                   [
                     { key: '30d' as const, label: '30 days' },
-                    { key: 'all' as const, label: 'All time' },
+                    { key: '90d' as const, label: '90 days' },
                     { key: 'goal' as const, label: 'Goal' },
                   ] as const
                 ).map(({ key, label }) => {
