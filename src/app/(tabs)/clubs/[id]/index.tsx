@@ -18,6 +18,7 @@ import {
   Trash2,
   Plus,
   ChevronRight,
+  MoreHorizontal,
 } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -27,6 +28,7 @@ import {
   useClubMembers,
   useClubLeaderboard,
   useDeleteGoal,
+  useDeletePost,
   useGoalLeaderboard,
   useGoalProgress,
   useMe,
@@ -67,6 +69,7 @@ export default function ClubDetailScreen() {
   const recentFeed = (feedQ.data?.feed ?? []).slice(0, 20);
   const canManage = club?.viewer_role === 'owner' || club?.viewer_role === 'admin';
   const myUserId = meQ.data?.id;
+  const deletePost = useDeletePost(id ?? '');
 
   const lbSpec = useMemo((): ClubLeaderboardQuery | null => {
     if (lbMode === '30d') return { window: '30d' };
@@ -368,13 +371,44 @@ export default function ClubDetailScreen() {
                           ) : isEditablePost ? (
                             <TouchableOpacity
                               onPress={() =>
-                                router.push(`/(tabs)/clubs/${id}/posts/${feedItemId}/edit`)
+                                Alert.alert(
+                                  'Post options',
+                                  undefined,
+                                  [
+                                    {
+                                      text: 'Edit',
+                                      onPress: () => router.push(`/(tabs)/clubs/${id}/posts/${feedItemId}/edit`),
+                                    },
+                                    {
+                                      text: 'Delete',
+                                      style: 'destructive',
+                                      onPress: () =>
+                                        Alert.alert(
+                                          'Delete post',
+                                          'This cannot be undone.',
+                                          [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            {
+                                              text: 'Delete',
+                                              style: 'destructive',
+                                              onPress: async () => {
+                                                try {
+                                                  await deletePost.mutateAsync(feedItemId);
+                                                } catch (e) {
+                                                  Alert.alert('Could not delete post', (e as Error)?.message ?? 'Try again later');
+                                                }
+                                              },
+                                            },
+                                          ],
+                                        ),
+                                    },
+                                    { text: 'Cancel', style: 'cancel' },
+                                  ],
+                                )
                               }
                               hitSlop={8}
                             >
-                              <Text style={[styles.feedEditLabel, { color: tokens.accentBlue }]}>
-                                Edit
-                              </Text>
+                              <MoreHorizontal size={18} color={tokens.textSecondary} />
                             </TouchableOpacity>
                           ) : null}
                         </View>
