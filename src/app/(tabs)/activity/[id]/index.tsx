@@ -17,6 +17,8 @@ import {
   Modal,
   FlatList,
   Pressable,
+  ActionSheetIOS,
+  Share,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -45,6 +47,9 @@ import {
 import { qk } from '@/api/queryClient';
 import { ApiError } from '@/api/client';
 import { generateStaticMapUrl } from '@/utils/mapbox';
+import { activityPublicShareUrl } from '@/utils/shareLinks';
+import { shareMapImageFromUrl } from '@/utils/shareActivityMap';
+import * as Clipboard from 'expo-clipboard';
 import {
   formatDateFromUnix,
   formatDuration,
@@ -57,9 +62,128 @@ import {
 import { MarkdownBubbleContent } from '@/components/chat/MarkdownBubbleContent';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
+import type { components } from '@/api/schema';
+
+type Activity = components['schemas']['Activity'];
 
 function coachMsgId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function ActivityShareButton({
+  activity,
+  mapUrl,
+  clubs,
+  tokens,
+  styles,
+  onOpenClubModal,
+}: {
+  activity: Activity;
+  mapUrl: string | null;
+  clubs: { id: string; name: string }[];
+  tokens: ThemeTokens;
+  styles: ReturnType<typeof makeStyles>;
+  onOpenClubModal: () => void;
+}) {
+  const shareUrl = activityPublicShareUrl(activity.id);
+  const previewOk = activity.share_preview_available === true;
+
+  const warnPrivateProfile = (then: () => void) => {
+    if (previewOk) {
+      then();
+      return;
+    }
+    Alert.alert(
+      'Public link unavailable',
+      'Set your profile to public in Settings to share a preview link that works in Messages and other apps.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue anyway', onPress: then },
+      ],
+    );
+  };
+
+  const copyLink = () => {
+    warnPrivateProfile(async () => {
+      await Clipboard.setStringAsync(shareUrl);
+      Alert.alert('Copied', 'Activity link copied to the clipboard.');
+    });
+  };
+
+  const systemShare = () => {
+    warnPrivateProfile(async () => {
+      try {
+        await Share.share({
+          url: shareUrl,
+          message: `Check out this run: ${activity.name}`,
+          title: activity.name,
+        });
+      } catch (e) {
+        Alert.alert('Share failed', (e as Error)?.message ?? 'Unknown error');
+      }
+    });
+  };
+
+  const shareMap = () => {
+    if (!mapUrl) return;
+    void (async () => {
+      try {
+        await shareMapImageFromUrl(mapUrl, activity.id);
+      } catch (e) {
+        Alert.alert('Could not share map', (e as Error)?.message ?? 'Unknown error');
+      }
+    })();
+  };
+
+  const openShareToClub = () => {
+    if (!clubs.length) {
+      Alert.alert('No clubs yet', 'Join a club from the Clubs tab to share your run there.');
+      return;
+    }
+    onOpenClubModal();
+  };
+
+  const openHub = () => {
+    const rows: { label: string; onPress: () => void }[] = [
+      { label: 'Copy link', onPress: () => copyLink() },
+      { label: 'Share…', onPress: () => systemShare() },
+    ];
+    if (mapUrl) {
+      rows.push({ label: 'Share map image…', onPress: () => shareMap() });
+    }
+    rows.push({ label: 'Share to club…', onPress: () => openShareToClub() });
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: [...rows.map((r) => r.label), 'Cancel'],
+          cancelButtonIndex: rows.length,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === undefined || buttonIndex === rows.length) return;
+          rows[buttonIndex]?.onPress();
+        },
+      );
+    } else {
+      Alert.alert(
+        'Share',
+        undefined,
+        [
+          ...rows.map((r) => ({
+            text: r.label,
+            onPress: () => r.onPress(),
+          })),
+          { text: 'Cancel', style: 'cancel' },
+        ],
+      );
+    }
+  };
+
+  return (
+    <TouchableOpacity onPress={openHub} hitSlop={12} style={styles.headerIconBtn}>
+      <Share2 size={20} color={tokens.textSecondary} />
+    </TouchableOpacity>
+  );
 }
 
 /** Space so the composer clears the floating DetailBar (back + agent pill, ~52px + ~28 offset). */
@@ -269,14 +393,6 @@ export default function ActivityDetailScreen() {
     }
   };
 
-  const openShare = () => {
-    if (!clubs.length) {
-      Alert.alert('No clubs yet', 'Join a club from the Clubs tab to share your run there.');
-      return;
-    }
-    setShareOpen(true);
-  };
-
   const pickClubForShare = (clubId: string) => {
     setShareOpen(false);
     router.push({
@@ -340,9 +456,14 @@ export default function ActivityDetailScreen() {
                 >
                   <Pencil size={20} color={tokens.textSecondary} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={openShare} hitSlop={12} style={styles.headerIconBtn}>
-                  <Share2 size={20} color={tokens.textSecondary} />
-                </TouchableOpacity>
+                <ActivityShareButton
+                  activity={activity}
+                  mapUrl={mapUrl}
+                  clubs={clubs}
+                  tokens={tokens}
+                  styles={styles}
+                  onOpenClubModal={() => setShareOpen(true)}
+                />
               </>
             ) : (
               <View style={{ width: 22 }} />

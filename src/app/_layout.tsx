@@ -10,6 +10,7 @@ import { BottomBarActionsProvider } from '@/components/nav/BottomBarActionsConte
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ThemeProvider, useTheme } from '@/theme/ThemeContext';
 import { useAppleHealthBackgroundSync } from '@/health/useAppleHealthBackgroundSync';
+import { UniversalActivityLinkHandler } from '@/components/UniversalActivityLinkHandler';
 
 export default function RootLayout() {
   usePushNotifications()
@@ -24,6 +25,7 @@ export default function RootLayout() {
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <AppleHealthSyncBridge />
+          <UniversalActivityLinkHandler />
           <BottomBarActionsProvider>
             <ThemedShell />
           </BottomBarActionsProvider>

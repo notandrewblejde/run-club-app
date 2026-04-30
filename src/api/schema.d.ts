@@ -645,6 +645,8 @@ export interface components {
       ai_coach_summary?: string | null;
       kudoed_by_viewer?: boolean;
       owned_by_viewer?: boolean;
+      /** Present when viewer owns the activity: public OG preview link is available. */
+      share_preview_available?: boolean;
       created?: number;
     };
     Comment: {
