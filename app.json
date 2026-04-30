@@ -27,7 +27,10 @@
         "UIBackgroundModes": [
           "remote-notification"
         ]
-      }
+      },
+      "associatedDomains": [
+        "applinks:api.runclub.gridclaw.io"
+      ]
     },
     "android": {
       "adaptiveIcon": {
