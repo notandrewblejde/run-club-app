@@ -14,10 +14,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Modal,
-  FlatList,
-  Pressable,
-  Share,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -30,7 +26,6 @@ import {
   Trash2,
   Award,
   Pencil,
-  Share2,
   Sparkles,
 } from 'lucide-react-native';
 import {
@@ -46,9 +41,6 @@ import {
 import { qk } from '@/api/queryClient';
 import { ApiError } from '@/api/client';
 import { generateStaticMapUrl } from '@/utils/mapbox';
-import { activityPublicShareUrl } from '@/utils/shareLinks';
-import { shareMapImageFromUrl } from '@/utils/shareActivityMap';
-import * as Clipboard from 'expo-clipboard';
 import {
   formatDateFromUnix,
   formatDuration,
@@ -59,138 +51,16 @@ import {
   formatRelativeFromUnix,
 } from '@/utils/format';
 import { MarkdownBubbleContent } from '@/components/chat/MarkdownBubbleContent';
-import { ActivityShareSheet } from '@/components/activity/ActivityShareSheet';
+import { ActivityShareTrigger } from '@/components/activity/ActivityShareTrigger';
+import { ShareToClubModal } from '@/components/activity/ShareToClubModal';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
 import type { components } from '@/api/schema';
 
 type Activity = components['schemas']['Activity'];
 
-/** Share sheet / SMS copy: distance when we have it, else generic Run Club line. */
-function buildActivityShareMessage(activity: Activity): string {
-  const mi = activity.distance_miles;
-  if (mi != null && Number(mi) > 0) {
-    const n = Number(Number(mi).toFixed(2));
-    const unit = n === 1 ? 'mile' : 'miles';
-    return `Check out this ${n} ${unit} run on Run Club!`;
-  }
-  return 'Check out this run on Run Club!';
-}
-
 function coachMsgId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function activityShareStatsLine(activity: Activity): string {
-  const parts: string[] = [];
-  if (activity.distance_miles != null && Number(activity.distance_miles) > 0) {
-    parts.push(formatMiles(activity.distance_miles));
-  }
-  const pace =
-    activity.avg_pace_display ??
-    (activity.avg_pace_secs_per_mile != null
-      ? formatPace(activity.avg_pace_secs_per_mile)
-      : null);
-  if (pace) parts.push(pace);
-  return parts.length ? parts.join(' · ') : 'Run Club activity';
-}
-
-function ActivityShareButton({
-  activity,
-  mapUrl,
-  clubs,
-  tokens,
-  styles,
-  onOpenClubModal,
-}: {
-  activity: Activity;
-  mapUrl: string | null;
-  clubs: { id: string; name: string }[];
-  tokens: ThemeTokens;
-  styles: ReturnType<typeof makeStyles>;
-  onOpenClubModal: () => void;
-}) {
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const shareUrl = activityPublicShareUrl(activity.id);
-  const previewOk = activity.share_preview_available === true;
-  const shareHeadline = buildActivityShareMessage(activity);
-  const shareStats = activityShareStatsLine(activity);
-
-  const warnPrivateProfile = (then: () => void) => {
-    if (previewOk) {
-      then();
-      return;
-    }
-    Alert.alert(
-      'Public link unavailable',
-      'Set your profile to public in Settings to share a preview link that works in Messages and other apps.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Continue anyway', onPress: then },
-      ],
-    );
-  };
-
-  const copyLink = () => {
-    warnPrivateProfile(async () => {
-      await Clipboard.setStringAsync(shareUrl);
-    });
-  };
-
-  const systemShare = () => {
-    warnPrivateProfile(async () => {
-      try {
-        const shareMessage = buildActivityShareMessage(activity);
-        await Share.share({
-          url: shareUrl,
-          message: shareMessage,
-          title: shareMessage,
-        });
-      } catch (e) {
-        Alert.alert('Share failed', (e as Error)?.message ?? 'Unknown error');
-      }
-    });
-  };
-
-  const shareMap = () => {
-    if (!mapUrl) return;
-    void (async () => {
-      try {
-        await shareMapImageFromUrl(mapUrl, activity.id);
-      } catch (e) {
-        Alert.alert('Could not share map', (e as Error)?.message ?? 'Unknown error');
-      }
-    })();
-  };
-
-  const openShareToClub = () => {
-    if (!clubs.length) {
-      Alert.alert('No clubs yet', 'Join a club from the Clubs tab to share your run there.');
-      return;
-    }
-    onOpenClubModal();
-  };
-
-  return (
-    <>
-      <TouchableOpacity onPress={() => setSheetOpen(true)} hitSlop={12} style={styles.headerIconBtn}>
-        <Share2 size={20} color={tokens.textSecondary} />
-      </TouchableOpacity>
-      <ActivityShareSheet
-        visible={sheetOpen}
-        onDismiss={() => setSheetOpen(false)}
-        mapUrl={mapUrl}
-        headline={shareHeadline}
-        statsLine={shareStats}
-        shareUrl={shareUrl}
-        tokens={tokens}
-        onCopyLink={() => copyLink()}
-        onSystemShare={() => systemShare()}
-        onShareMapImage={mapUrl ? () => shareMap() : null}
-        onShareToClub={() => openShareToClub()}
-      />
-    </>
-  );
 }
 
 /** Space so the composer clears the floating DetailBar (back + agent pill, ~52px + ~28 offset). */
@@ -414,30 +284,12 @@ export default function ActivityDetailScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
-      <Modal visible={shareOpen} animationType="slide" transparent>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShareOpen(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Share to a club</Text>
-            <Text style={styles.modalHint}>Pick a club. Your post will link to this activity.</Text>
-            <FlatList
-              data={clubs}
-              keyExtractor={(c) => c.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.clubRow}
-                  onPress={() => pickClubForShare(item.id)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.clubName}>{item.name}</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setShareOpen(false)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <ShareToClubModal
+        visible={shareOpen}
+        onDismiss={() => setShareOpen(false)}
+        clubs={clubs}
+        onPickClub={(clubId) => pickClubForShare(clubId)}
+      />
 
       <ScrollView
         ref={mainScrollRef}
@@ -463,13 +315,12 @@ export default function ActivityDetailScreen() {
                 >
                   <Pencil size={20} color={tokens.textSecondary} />
                 </TouchableOpacity>
-                <ActivityShareButton
+                <ActivityShareTrigger
                   activity={activity}
                   mapUrl={mapUrl}
                   clubs={clubs}
-                  tokens={tokens}
-                  styles={styles}
                   onOpenClubModal={() => setShareOpen(true)}
+                  style={styles.headerIconBtn}
                 />
               </>
             ) : (
@@ -510,26 +361,36 @@ export default function ActivityDetailScreen() {
         )}
 
         <View style={styles.engagementRow}>
-          <TouchableOpacity style={styles.engagementBtn} onPress={() => toggleKudo.mutate()}>
-            <Heart
-              size={20}
-              color={activity.kudoed_by_viewer ? tokens.accentOrange : tokens.textSecondary}
-              fill={activity.kudoed_by_viewer ? tokens.accentOrange : 'transparent'}
+          <View style={styles.engagementRowLeft}>
+            <TouchableOpacity style={styles.engagementBtn} onPress={() => toggleKudo.mutate()}>
+              <Heart
+                size={20}
+                color={activity.kudoed_by_viewer ? tokens.accentOrange : tokens.textSecondary}
+                fill={activity.kudoed_by_viewer ? tokens.accentOrange : 'transparent'}
+              />
+              <Text style={styles.engagementCount}>{activity.kudos_count}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.engagementBtn}
+              onPress={() => {
+                setActivityTab('comments');
+                commentsRef.current?.measureInWindow((x, y) => {
+                  mainScrollRef.current?.scrollTo({ y: y, animated: true });
+                });
+              }}
+            >
+              <MessageCircle size={20} color={tokens.textSecondary} />
+              <Text style={styles.engagementCount}>{activity.comment_count}</Text>
+            </TouchableOpacity>
+          </View>
+          {activity.owned_by_viewer ? (
+            <ActivityShareTrigger
+              activity={activity}
+              mapUrl={mapUrl}
+              clubs={clubs}
+              onOpenClubModal={() => setShareOpen(true)}
             />
-            <Text style={styles.engagementCount}>{activity.kudos_count}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.engagementBtn}
-            onPress={() => {
-              setActivityTab('comments');
-              commentsRef.current?.measureInWindow((x, y) => {
-                mainScrollRef.current?.scrollTo({ y: y, animated: true });
-              });
-            }}
-          >
-            <MessageCircle size={20} color={tokens.textSecondary} />
-            <Text style={styles.engagementCount}>{activity.comment_count}</Text>
-          </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.statGrid}>
@@ -897,7 +758,14 @@ function makeStyles(t: ThemeTokens) {
     statValue: { color: t.text, fontSize: 14, fontWeight: '600' },
     photoStrip: { paddingHorizontal: 20, gap: 8, marginBottom: 16 },
     photo: { width: 160, height: 120, borderRadius: 8, marginRight: 8, backgroundColor: t.surfaceElevated },
-    engagementRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 24, marginBottom: 16 },
+    engagementRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      marginBottom: 16,
+    },
+    engagementRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 24 },
     engagementBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     engagementCount: { color: t.textSecondary, fontSize: 14 },
     tabBar: {
@@ -987,29 +855,5 @@ function makeStyles(t: ThemeTokens) {
       justifyContent: 'center',
     },
     sendBtnDisabled: { opacity: 0.4 },
-    modalBackdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      justifyContent: 'flex-end',
-    },
-    modalSheet: {
-      backgroundColor: t.background,
-      borderTopLeftRadius: 16,
-      borderTopRightRadius: 16,
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      paddingBottom: 36,
-      maxHeight: '55%',
-    },
-    modalTitle: { color: t.text, fontSize: 18, fontWeight: '700' },
-    modalHint: { color: t.textMuted, fontSize: 13, marginTop: 6, marginBottom: 12 },
-    clubRow: {
-      paddingVertical: 14,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: t.border,
-    },
-    clubName: { color: t.text, fontSize: 16, fontWeight: '600' },
-    modalCancel: { marginTop: 16, alignItems: 'center', paddingVertical: 12 },
-    modalCancelText: { color: t.textSecondary, fontSize: 15 },
   });
 }

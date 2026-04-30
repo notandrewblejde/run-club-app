@@ -21,7 +21,7 @@ type Props = {
   statsLine: string;
   shareUrl: string;
   tokens: ThemeTokens;
-  onCopyLink: () => void;
+  onCopyLink: () => Promise<boolean>;
   onSystemShare: () => void;
   onShareMapImage: (() => void) | null;
   onShareToClub: () => void;
@@ -63,9 +63,13 @@ export function ActivityShareSheet({
   };
 
   const handleCopy = () => {
-    onCopyLink();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2200);
+    void (async () => {
+      const ok = await onCopyLink();
+      if (ok) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2200);
+      }
+    })();
   };
 
   const maxSheet = Math.min(winH * 0.72, 520);

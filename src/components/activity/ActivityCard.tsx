@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Heart, MessageCircle, Award } from 'lucide-react-native';
@@ -12,6 +12,9 @@ import {
 } from '@/utils/format';
 import { useTheme } from '@/theme/ThemeContext';
 import type { ThemeTokens } from '@/theme/tokens';
+import { useMyClubs } from '@/api/hooks';
+import { ActivityShareTrigger } from '@/components/activity/ActivityShareTrigger';
+import { ShareToClubModal } from '@/components/activity/ShareToClubModal';
 
 type Activity = components['schemas']['Activity'];
 
@@ -23,6 +26,9 @@ interface ActivityCardProps {
 export function ActivityCard({ activity, onPress }: ActivityCardProps) {
   const { tokens } = useTheme();
   const styles = useMemo(() => makeStyles(tokens), [tokens]);
+  const myClubsQ = useMyClubs();
+  const clubs = myClubsQ.data?.data ?? [];
+  const [shareClubOpen, setShareClubOpen] = useState(false);
 
   const mapUrl = generateStaticMapUrl(activity.map_polyline, 600, 240, {
     style: tokens.mapStyle,
@@ -30,9 +36,24 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
   });
   const userName = activity.user?.name ?? 'Unnamed runner';
   const avatar = activity.user?.avatar_url;
+  const isMine = activity.owned_by_viewer === true;
+
+  const pickClubForShare = (clubId: string) => {
+    setShareClubOpen(false);
+    router.push({
+      pathname: '/(tabs)/clubs/[id]/posts/new',
+      params: { id: clubId, activityId: activity.id },
+    });
+  };
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+      <ShareToClubModal
+        visible={shareClubOpen}
+        onDismiss={() => setShareClubOpen(false)}
+        clubs={clubs}
+        onPickClub={pickClubForShare}
+      />
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.headerLeft}
@@ -86,18 +107,29 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
       ) : null}
 
       <View style={styles.footer}>
-        <View style={styles.engagement}>
-          <Heart
-            size={16}
-            color={activity.kudoed_by_viewer ? tokens.accentOrange : tokens.textMuted}
-            fill={activity.kudoed_by_viewer ? tokens.accentOrange : 'transparent'}
+        <View style={styles.footerLeft}>
+          <View style={styles.engagement}>
+            <Heart
+              size={16}
+              color={activity.kudoed_by_viewer ? tokens.accentOrange : tokens.textMuted}
+              fill={activity.kudoed_by_viewer ? tokens.accentOrange : 'transparent'}
+            />
+            <Text style={styles.count}>{activity.kudos_count}</Text>
+          </View>
+          <View style={styles.engagement}>
+            <MessageCircle size={16} color={tokens.textMuted} />
+            <Text style={styles.count}>{activity.comment_count}</Text>
+          </View>
+        </View>
+        {isMine ? (
+          <ActivityShareTrigger
+            activity={activity}
+            mapUrl={mapUrl}
+            clubs={clubs}
+            onOpenClubModal={() => setShareClubOpen(true)}
+            iconSize={18}
           />
-          <Text style={styles.count}>{activity.kudos_count}</Text>
-        </View>
-        <View style={styles.engagement}>
-          <MessageCircle size={16} color={tokens.textMuted} />
-          <Text style={styles.count}>{activity.comment_count}</Text>
-        </View>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -173,7 +205,12 @@ function makeStyles(t: ThemeTokens) {
       marginBottom: 12,
       backgroundColor: t.surfaceElevated,
     },
-    footer: { flexDirection: 'row', gap: 16 },
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
     engagement: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     count: { color: t.textSecondary, fontSize: 12 },
   });
