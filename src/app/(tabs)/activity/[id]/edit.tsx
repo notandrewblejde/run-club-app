@@ -30,6 +30,8 @@ export default function EditActivityDetailsScreen() {
 
   const [note, setNote] = useState('');
   const [appPhotos, setAppPhotos] = useState<string[]>([]);
+  // Local URIs shown as previews while uploading; replaced by S3 URLs on success
+  const [localPreviews, setLocalPreviews] = useState<{ localUri: string; s3Url?: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const hydrated = useRef(false);
 
@@ -41,6 +43,8 @@ export default function EditActivityDetailsScreen() {
     if (!activityQ.data || hydrated.current) return;
     hydrated.current = true;
     setNote(activityQ.data.user_note ?? '');
+    const existing = (activityQ.data.app_photos ?? []).map((url: string) => ({ localUri: url, s3Url: url }));
+    setLocalPreviews(existing);
     setAppPhotos(activityQ.data.app_photos ?? []);
   }, [activityQ.data]);
 
@@ -68,24 +72,35 @@ export default function EditActivityDetailsScreen() {
       const result = await ImagePicker.launchImageLibraryAsync(libraryMultiImagePickerOptions());
       if (result.canceled || !result.assets?.length) return;
 
+      // Show local previews immediately
+      const newPreviews = result.assets.map((a: { uri: string }) => ({ localUri: a.uri }));
+      setLocalPreviews((prev) => [...prev, ...newPreviews]);
+
       setUploading(true);
-      const uploaded: string[] = [];
       for (const asset of result.assets) {
-        const contentType = asset.mimeType ?? 'image/jpeg';
-        const presigned = await presignPhoto.mutateAsync(contentType);
-        const fileResp = await fetch(asset.uri);
-        const blob = await fileResp.blob();
-        const putResp = await fetch(presigned.upload_url, {
-          method: 'PUT',
-          headers: { 'Content-Type': contentType },
-          body: blob,
-        });
-        if (!putResp.ok) {
-          throw new Error(`S3 upload failed (${putResp.status})`);
+        const localUri = asset.uri;
+        try {
+          const contentType = asset.mimeType ?? 'image/jpeg';
+          const presigned = await presignPhoto.mutateAsync(contentType);
+          const fileResp = await fetch(localUri);
+          const blob = await fileResp.blob();
+          const putResp = await fetch(presigned.upload_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': contentType },
+            body: blob,
+          });
+          if (!putResp.ok) throw new Error(`S3 upload failed (${putResp.status})`);
+          // Replace local preview with S3 URL
+          setLocalPreviews((prev) =>
+            prev.map((p) => (p.localUri === localUri ? { localUri, s3Url: presigned.public_url } : p))
+          );
+          setAppPhotos((prev) => [...prev, presigned.public_url]);
+        } catch (e) {
+          // Remove failed preview
+          setLocalPreviews((prev) => prev.filter((p) => p.localUri !== localUri));
+          throw e;
         }
-        uploaded.push(presigned.public_url);
       }
-      setAppPhotos((prev) => [...prev, ...uploaded]);
     } catch (e: unknown) {
       Alert.alert('Upload failed', (e as Error)?.message ?? 'Try again later');
     } finally {
@@ -93,18 +108,12 @@ export default function EditActivityDetailsScreen() {
     }
   };
 
+  // Save is rendered inline in the header — no BottomBarActions needed on this screen
   useEffect(() => {
-    setActions([
-      {
-        label: 'Save',
-        onPress: submit,
-        loading: updateActivity.isPending,
-        disabled: updateActivity.isPending || uploading || !activityQ.data,
-      },
-    ]);
+    clearActions();
     return () => clearActions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [note, appPhotos, updateActivity.isPending, uploading, activityQ.data]);
+  }, []);
 
   if (!id) return null;
 
@@ -134,7 +143,19 @@ export default function EditActivityDetailsScreen() {
           <ArrowLeft size={22} color={tokens.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit details</Text>
-        <View style={{ width: 22 }} />
+        <TouchableOpacity
+          onPress={submit}
+          disabled={updateActivity.isPending || uploading || !activityQ.data}
+          hitSlop={12}
+        >
+          {updateActivity.isPending ? (
+            <ActivityIndicator size="small" color={tokens.accentBlue} />
+          ) : (
+            <Text style={[styles.saveBtn, (uploading || !activityQ.data) && styles.saveBtnDisabled]}>
+              Save
+            </Text>
+          )}
+        </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <Text style={styles.help}>
@@ -169,14 +190,23 @@ export default function EditActivityDetailsScreen() {
           </TouchableOpacity>
         </View>
 
-        {appPhotos.length > 0 ? (
+        {localPreviews.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
-            {appPhotos.map((url) => (
-              <View key={url} style={styles.photoWrap}>
-                <Image source={{ uri: url }} style={styles.photo} />
+            {localPreviews.map((p) => (
+              <View key={p.localUri} style={styles.photoWrap}>
+                <Image source={{ uri: p.localUri }} style={styles.photo} />
+                {/* Uploading spinner overlay */}
+                {!p.s3Url && (
+                  <View style={styles.photoUploading}>
+                    <ActivityIndicator size="small" color="#fff" />
+                  </View>
+                )}
                 <TouchableOpacity
                   style={styles.photoRemove}
-                  onPress={() => setAppPhotos((prev) => prev.filter((p) => p !== url))}
+                  onPress={() => {
+                    setLocalPreviews((prev) => prev.filter((x) => x.localUri !== p.localUri));
+                    if (p.s3Url) setAppPhotos((prev) => prev.filter((u) => u !== p.s3Url));
+                  }}
                   hitSlop={8}
                 >
                   <X size={12} color="#fff" />
@@ -257,5 +287,14 @@ function makeStyles(t: ThemeTokens) {
       backgroundColor: 'rgba(0,0,0,0.65)',
     },
     hint: { color: t.textMuted, marginTop: 8 },
+    saveBtn: { color: t.accentBlue, fontWeight: '700', fontSize: 16 },
+    saveBtnDisabled: { opacity: 0.4 },
+    photoUploading: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 10,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
   });
 }
