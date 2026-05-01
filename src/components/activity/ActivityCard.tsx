@@ -98,11 +98,11 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
       </View>
 
       {mapUrl ? (
-        <Image
-          key={`${activity.id}-${mapUrl}`}
-          source={{ uri: mapUrl }}
-          style={styles.mapThumbnail}
-          resizeMode="cover"
+        <ActivityMediaGrid
+          mapUrl={mapUrl}
+          activityId={activity.id ?? ''}
+          photos={activity.app_photos ?? []}
+          styles={styles}
         />
       ) : null}
 
@@ -132,6 +132,66 @@ export function ActivityCard({ activity, onPress }: ActivityCardProps) {
         ) : null}
       </View>
     </TouchableOpacity>
+  );
+}
+
+/**
+ * Photo grid below the stats row.
+ * - 0 photos: full-width map thumbnail (existing behaviour)
+ * - 1 photo:  map left (60%) | photo right (40%), same height
+ * - 2 photos: map left (60%) | two photos stacked right (40%)
+ * Map is always shown; only first 2 user photos are displayed.
+ */
+function ActivityMediaGrid({
+  mapUrl,
+  activityId,
+  photos,
+  styles,
+}: {
+  mapUrl: string;
+  activityId: string;
+  photos: string[];
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const visiblePhotos = photos.slice(0, 2);
+
+  if (visiblePhotos.length === 0) {
+    return (
+      <Image
+        key={`${activityId}-${mapUrl}`}
+        source={{ uri: mapUrl }}
+        style={styles.mapThumbnail}
+        resizeMode="cover"
+      />
+    );
+  }
+
+  return (
+    <View style={styles.mediaGrid}>
+      {/* Map — always left, fills height */}
+      <Image
+        key={`${activityId}-${mapUrl}`}
+        source={{ uri: mapUrl }}
+        style={styles.mediaMap}
+        resizeMode="cover"
+      />
+      {/* Photos — stacked on the right */}
+      <View style={styles.mediaPhotos}>
+        {visiblePhotos.map((uri, i) => (
+          <Image
+            key={uri}
+            source={{ uri }}
+            style={[
+              styles.mediaPhoto,
+              visiblePhotos.length === 1 && styles.mediaPhotoSingle,
+              visiblePhotos.length === 2 && i === 0 && styles.mediaPhotoTop,
+              visiblePhotos.length === 2 && i === 1 && styles.mediaPhotoBottom,
+            ]}
+            resizeMode="cover"
+          />
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -204,6 +264,38 @@ function makeStyles(t: ThemeTokens) {
       borderRadius: 8,
       marginBottom: 12,
       backgroundColor: t.surfaceElevated,
+    },
+    // Photo grid
+    mediaGrid: {
+      flexDirection: 'row',
+      height: 140,
+      borderRadius: 8,
+      overflow: 'hidden',
+      marginBottom: 12,
+      gap: 2,
+    },
+    mediaMap: {
+      flex: 3, // 60%
+      height: '100%',
+      backgroundColor: t.surfaceElevated,
+    },
+    mediaPhotos: {
+      flex: 2, // 40%
+      flexDirection: 'column',
+      gap: 2,
+    },
+    mediaPhoto: {
+      flex: 1,
+      backgroundColor: t.surfaceElevated,
+    },
+    mediaPhotoSingle: {
+      flex: 1,
+    },
+    mediaPhotoTop: {
+      flex: 1,
+    },
+    mediaPhotoBottom: {
+      flex: 1,
     },
     footer: {
       flexDirection: 'row',
