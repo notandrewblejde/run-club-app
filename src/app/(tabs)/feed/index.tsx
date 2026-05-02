@@ -53,8 +53,15 @@ export default function FeedScreen() {
 
   const preview = notifPreview.data;
   const unread = preview?.unread_count ?? 0;
+  /**
+   * "Run synced" strip: only when there is unread work. If everything is read but the newest
+   * notification is still ACTIVITY_ARRIVED, preview.latest stays that type — without this gate
+   * the card would never disappear.
+   */
   const showNotifInFeedStrip =
-    !notifPreview.isLoading && preview?.latest?.type === ACTIVITY_ARRIVED;
+    !notifPreview.isLoading &&
+    unread > 0 &&
+    preview?.latest?.type === ACTIVITY_ARRIVED;
   const showNotifHeaderBell = !notifPreview.isLoading && !showNotifInFeedStrip;
 
   return (
